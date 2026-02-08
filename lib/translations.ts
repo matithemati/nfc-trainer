@@ -40,7 +40,6 @@ export const translations: Record<Lang, Record<string, string>> = {
     workout: "trening",
     workouts: "treningi",
     exercise: "ćwiczenie",
-    exercises: "ćwiczenia",
     workoutNumber: "Trening #",
     setsLabel: "serie",
     repsLabel: "powtórzenia",
