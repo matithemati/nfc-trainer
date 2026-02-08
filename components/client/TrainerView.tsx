@@ -67,13 +67,28 @@ export function TrainerView({
   const load = async () => {
     try {
       const res = await fetch(`/api/trainers/${trainerId}/clients`);
-      const data = await res.json();
+      
+      // Check if response has content before parsing JSON
+      const text = await res.text();
+      if (!text) {
+        setError("Empty response from server");
+        return;
+      }
+      
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch (parseError) {
+        setError("Invalid response from server");
+        console.error("JSON parse error:", parseError, "Response:", text);
+        return;
+      }
+      
       if (res.ok) {
         setTrainer(data.trainer);
         setClients(data.clients);
       } else {
         setError(data.error || "Failed to load trainer");
-        console.error("API error:", data);
       }
     } catch (err) {
       setError("Failed to load trainer data");
