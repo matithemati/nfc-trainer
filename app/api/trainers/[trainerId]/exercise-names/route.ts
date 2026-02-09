@@ -70,7 +70,7 @@ export async function POST(
 
     await db.collection("trainers").updateOne(
       { _id: new ObjectId(trainerId) },
-      { $push: { exerciseNames: trimmedName } }
+      { $push: { exerciseNames: trimmedName } } as any
     );
 
     const updated = await db
@@ -116,7 +116,7 @@ export async function DELETE(
 
     await db.collection("trainers").updateOne(
       { _id: new ObjectId(trainerId) },
-      { $pull: { exerciseNames: exerciseName } }
+      { $pull: { exerciseNames: exerciseName } } as any
     );
 
     const updated = await db
