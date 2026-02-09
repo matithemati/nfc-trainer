@@ -4,6 +4,7 @@ import { useState, useMemo } from "react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer } from "recharts";
 import { Button } from "@/components/ui/button";
 import { getMessages } from "@/lib/i18n";
+import { Calendar } from "lucide-react";
 
 type WeightPoint = { date: string; weight: number };
 
@@ -78,6 +79,7 @@ export function WeightChart({ data, lang }: { data: WeightPoint[]; lang?: string
               setCurrentYear(today.getFullYear());
             }}
           >
+            <Calendar className="size-4" />
             {t("today")}
           </Button>
           <Button

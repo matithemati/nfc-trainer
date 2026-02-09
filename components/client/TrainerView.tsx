@@ -9,12 +9,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { getMessages } from "@/lib/i18n";
+import { WeightChart } from "./Charts";
 import { 
   Plus, 
   Trash2, 
   Pencil, 
-  Eye, 
-  EyeOff, 
   ChevronDown, 
   ChevronUp,
   Check,
@@ -45,6 +44,7 @@ type WorkoutExercise = {
   name: string;
   sets: number;
   reps: number;
+  weight?: number;
 };
 
 type WorkoutLog = {
@@ -53,6 +53,8 @@ type WorkoutLog = {
   date: string;
   exercises: WorkoutExercise[];
 };
+
+type WeightPoint = { _id?: string; date: string; weight: number };
 
 export function TrainerView({
   trainerId,
@@ -91,13 +93,15 @@ export function TrainerView({
     name: "",
     sets: 3,
     reps: 10,
+    weight: undefined,
   });
   const [editingWorkout, setEditingWorkout] = useState<{
     logId: string;
     date: string;
     exercises: WorkoutExercise[];
   } | null>(null);
-  const [clientActiveTab, setClientActiveTab] = useState<"plans" | "workouts" | "history">("workouts");
+  const [clientActiveTab, setClientActiveTab] = useState<"plans" | "workouts" | "history" | "progress">("workouts");
+  const [clientWeights, setClientWeights] = useState<WeightPoint[]>([]);
 
   const load = async () => {
     try {
@@ -222,6 +226,18 @@ export function TrainerView({
     } catch (err) {
       console.error("Failed to load workout logs:", err);
     }
+    
+    // Load weight data for this client
+    try {
+      const wRes = await fetch(`/api/clients/${c._id}/weights`);
+      if (wRes.ok) {
+        const weights = await wRes.json();
+        setClientWeights(weights);
+      }
+    } catch (err) {
+      console.error("Failed to load weights:", err);
+    }
+    
     loadExerciseNames();
   };
 
@@ -340,7 +356,7 @@ export function TrainerView({
   const addExerciseToWorkout = () => {
     if (!newExercise.name) return;
     setWorkoutExercises([...workoutExercises, { ...newExercise }]);
-    setNewExercise({ name: "", sets: 3, reps: 10 });
+    setNewExercise({ name: "", sets: 3, reps: 10, weight: undefined });
   };
 
   const removeExerciseFromWorkout = (index: number) => {
@@ -388,7 +404,7 @@ export function TrainerView({
       ...editingWorkout,
       exercises: [...editingWorkout.exercises, { ...newExercise }],
     });
-    setNewExercise({ name: "", sets: 3, reps: 10 });
+    setNewExercise({ name: "", sets: 3, reps: 10, weight: undefined });
   };
 
   const removeExerciseFromEditingWorkout = (index: number) => {
@@ -626,13 +642,13 @@ export function TrainerView({
                             >
                               {isExpanded ? (
                                 <>
-                                  <EyeOff className="size-4" />
-                                  {t("hide")}
+                                  <ChevronLeft className="size-4" />
+                                  {t("back")}
                                 </>
                               ) : (
                                 <>
-                                  <Eye className="size-4" />
-                                  {t("show")}
+                                  <Pencil className="size-4" />
+                                  {t("edit")}
                                 </>
                               )}
                             </Button>
@@ -641,37 +657,49 @@ export function TrainerView({
                         {isExpanded && selectedClient?._id === c._id && (
                           <div className="px-3 pb-3 pt-0 border-t">
                             {/* Tab Navigation */}
-                            <div className="flex gap-2 border-b pt-3">
-                              <button
-                                onClick={() => setClientActiveTab("workouts")}
-                                className={`px-4 py-2 text-sm font-medium transition-colors ${
-                                  clientActiveTab === "workouts"
-                                    ? "border-b-2 border-primary text-primary"
-                                    : "text-muted-foreground hover:text-foreground"
-                                }`}
-                              >
-                                {t("addWorkout")}
-                              </button>
-                              <button
-                                onClick={() => setClientActiveTab("history")}
-                                className={`px-4 py-2 text-sm font-medium transition-colors ${
-                                  clientActiveTab === "history"
-                                    ? "border-b-2 border-primary text-primary"
-                                    : "text-muted-foreground hover:text-foreground"
-                                }`}
-                              >
-                                {t("workoutHistory")}
-                              </button>
-                              <button
-                                onClick={() => setClientActiveTab("plans")}
-                                className={`px-4 py-2 text-sm font-medium transition-colors ${
-                                  clientActiveTab === "plans"
-                                    ? "border-b-2 border-primary text-primary"
-                                    : "text-muted-foreground hover:text-foreground"
-                                }`}
-                              >
-                                {t("workoutsPlan")} & {t("dietPlan")}
-                              </button>
+                            <div className="overflow-x-auto -mx-3 px-3">
+                              <div className="flex gap-2 border-b pt-3 min-w-max">
+                                <button
+                                  onClick={() => setClientActiveTab("workouts")}
+                                  className={`px-4 py-2 text-sm font-medium transition-colors whitespace-nowrap ${
+                                    clientActiveTab === "workouts"
+                                      ? "border-b-2 border-primary text-primary"
+                                      : "text-muted-foreground hover:text-foreground"
+                                  }`}
+                                >
+                                  {t("addWorkout")}
+                                </button>
+                                <button
+                                  onClick={() => setClientActiveTab("history")}
+                                  className={`px-4 py-2 text-sm font-medium transition-colors whitespace-nowrap ${
+                                    clientActiveTab === "history"
+                                      ? "border-b-2 border-primary text-primary"
+                                      : "text-muted-foreground hover:text-foreground"
+                                  }`}
+                                >
+                                  {t("workoutHistory")}
+                                </button>
+                                <button
+                                  onClick={() => setClientActiveTab("progress")}
+                                  className={`px-4 py-2 text-sm font-medium transition-colors whitespace-nowrap ${
+                                    clientActiveTab === "progress"
+                                      ? "border-b-2 border-primary text-primary"
+                                      : "text-muted-foreground hover:text-foreground"
+                                  }`}
+                                >
+                                  {t("progressChart")}
+                                </button>
+                                <button
+                                  onClick={() => setClientActiveTab("plans")}
+                                  className={`px-4 py-2 text-sm font-medium transition-colors whitespace-nowrap ${
+                                    clientActiveTab === "plans"
+                                      ? "border-b-2 border-primary text-primary"
+                                      : "text-muted-foreground hover:text-foreground"
+                                  }`}
+                                >
+                                  {t("workoutsPlan")} & {t("dietPlan")}
+                                </button>
+                              </div>
                             </div>
 
                             {/* Tab Content */}
@@ -683,9 +711,9 @@ export function TrainerView({
                                     onClick={() => {
                                       setShowAddWorkout(true);
                                       setWorkoutDate(new Date().toISOString().split("T")[0]);
-                                      setWorkoutExercises([]);
-                                      setNewExercise({ name: "", sets: 3, reps: 10 });
-                                      loadExerciseNames();
+        setWorkoutExercises([]);
+        setNewExercise({ name: "", sets: 3, reps: 10, weight: undefined });
+        loadExerciseNames();
                                     }}
                                     className="w-full"
                                   >
@@ -712,6 +740,7 @@ export function TrainerView({
                                           <div key={idx} className="flex items-center justify-between p-2 border rounded">
                                             <span className="text-sm">
                                               {ex.name} - {ex.sets} {t("setsLabel")} × {ex.reps} {t("repsLabel")}
+                                              {ex.weight && ` @ ${ex.weight} ${t("weightUnit")}`}
                                             </span>
                                             <Button
                                               variant="ghost"
@@ -750,7 +779,7 @@ export function TrainerView({
                                           </p>
                                         )}
                                       </div>
-                                      <div className="grid grid-cols-2 gap-2">
+                                      <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                                         <div>
                                           <Label className="text-sm">{t("sets")}</Label>
                                           <Input
@@ -771,6 +800,22 @@ export function TrainerView({
                                               setNewExercise((ex) => ({ ...ex, reps: Number(e.target.value) }))
                                             }
                                             className="mt-1"
+                                          />
+                                        </div>
+                                        <div className="col-span-2 md:col-span-1">
+                                          <div className="flex items-center gap-1">
+                                            <Label className="text-sm">{t("weight")}</Label>
+                                            <span className="text-xs text-muted-foreground">({t("optional")})</span>
+                                          </div>
+                                          <Input
+                                            type="number"
+                                            step="0.1"
+                                            value={newExercise.weight || ""}
+                                            onChange={(e) =>
+                                              setNewExercise((ex) => ({ ...ex, weight: e.target.value ? Number(e.target.value) : undefined }))
+                                            }
+                                            className="mt-1"
+                                            placeholder={t("optional")}
                                           />
                                         </div>
                                       </div>
@@ -798,7 +843,7 @@ export function TrainerView({
                                         onClick={() => {
                                           setShowAddWorkout(false);
                                           setWorkoutExercises([]);
-                                          setNewExercise({ name: "", sets: 3, reps: 10 });
+                                          setNewExercise({ name: "", sets: 3, reps: 10, weight: undefined });
                                         }}
                                       >
                                         <X className="size-4" />
@@ -821,7 +866,6 @@ export function TrainerView({
                                         onClick={() => navigateWorkoutMonth(-1)}
                                         title={t("previous")}
                                       >
-                                        <ChevronLeft className="size-4" />
                                         <span className="hidden md:inline">{t("previous")}</span>
                                       </Button>
                                       <Button
@@ -844,7 +888,6 @@ export function TrainerView({
                                         title={t("next")}
                                       >
                                         <span className="hidden md:inline">{t("next")}</span>
-                                        <ChevronRight className="size-4" />
                                       </Button>
                                     </div>
                                   )}
@@ -951,6 +994,7 @@ export function TrainerView({
                                                                   <div key={idx} className="flex items-center justify-between p-2 border rounded">
                                                                     <span className="text-sm">
                                                                       {ex.name} - {ex.sets} {t("setsLabel")} × {ex.reps} {t("repsLabel")}
+                                                                      {ex.weight && ` @ ${ex.weight} ${t("weightUnit")}`}
                                                                     </span>
                                                                     <Button
                                                                       variant="ghost"
@@ -984,7 +1028,7 @@ export function TrainerView({
                                                                   ))}
                                                                 </select>
                                                               </div>
-                                                              <div className="grid grid-cols-2 gap-2">
+                                                              <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                                                                 <div>
                                                                   <Label className="text-sm">{t("sets")}</Label>
                                                                   <Input
@@ -1005,6 +1049,22 @@ export function TrainerView({
                                                                       setNewExercise((ex) => ({ ...ex, reps: Number(e.target.value) }))
                                                                     }
                                                                     className="mt-1"
+                                                                  />
+                                                                </div>
+                                                                <div className="col-span-2 md:col-span-1">
+                                                                  <div className="flex items-center gap-1">
+                                                                    <Label className="text-sm">{t("weight")}</Label>
+                                                                    <span className="text-xs text-muted-foreground">({t("optional")})</span>
+                                                                  </div>
+                                                                  <Input
+                                                                    type="number"
+                                                                    step="0.1"
+                                                                    value={newExercise.weight || ""}
+                                                                    onChange={(e) =>
+                                                                      setNewExercise((ex) => ({ ...ex, weight: e.target.value ? Number(e.target.value) : undefined }))
+                                                                    }
+                                                                    className="mt-1"
+                                                                    placeholder={t("optional")}
                                                                   />
                                                                 </div>
                                                               </div>
@@ -1121,6 +1181,22 @@ export function TrainerView({
                                                                           placeholder={t("reps")}
                                                                           className="w-20"
                                                                         />
+                                                                        <Input
+                                                                          type="number"
+                                                                          step="0.1"
+                                                                          value={editingExercise.exercise.weight || ""}
+                                                                          onChange={(e) =>
+                                                                            setEditingExercise({
+                                                                              ...editingExercise,
+                                                                              exercise: {
+                                                                                ...editingExercise.exercise,
+                                                                                weight: e.target.value ? Number(e.target.value) : undefined,
+                                                                              },
+                                                                            })
+                                                                          }
+                                                                          placeholder={t("exerciseWeight")}
+                                                                          className="w-24"
+                                                                        />
                                                                         <Button
                                                                           size="sm"
                                                                           onClick={() =>
@@ -1150,6 +1226,7 @@ export function TrainerView({
                                                                         <span className="font-medium">{ex.name}</span>
                                                                         <span className="text-sm text-muted-foreground ml-2">
                                                                           {ex.sets} {t("setsLabel")} × {ex.reps} {t("repsLabel")}
+                                                                          {ex.weight && ` @ ${ex.weight} ${t("weightUnit")}`}
                                                                         </span>
                                                                       </div>
                                                                       <div className="flex gap-2">
@@ -1193,6 +1270,18 @@ export function TrainerView({
                                       </div>
                                     );
                                   })()
+                                )}
+                              </div>
+                            )}
+
+                            {clientActiveTab === "progress" && (
+                              <div className="pt-3">
+                                {clientWeights.length > 0 ? (
+                                  <WeightChart data={clientWeights} lang={lang} />
+                                ) : (
+                                  <p className="text-muted-foreground text-sm text-center py-8">
+                                    {t("noWeightData")}
+                                  </p>
                                 )}
                               </div>
                             )}

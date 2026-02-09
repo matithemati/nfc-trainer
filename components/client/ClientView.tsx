@@ -17,7 +17,8 @@ import {
   Save,
   Pencil,
   Trash2,
-  X
+  X,
+  LogIn
 } from "lucide-react";
 
 type Trainer = {
@@ -41,6 +42,7 @@ type WorkoutExercise = {
   name: string;
   sets: number;
   reps: number;
+  weight?: number;
 };
 
 type WorkoutLog = {
@@ -88,6 +90,9 @@ export function ClientView({
   const [activeTab, setActiveTab] = useState<"workouts" | "progress" | "plans">("workouts");
   const [showWorkoutPlan, setShowWorkoutPlan] = useState(false);
   const [showDietPlan, setShowDietPlan] = useState(false);
+  const [showTrainerLogin, setShowTrainerLogin] = useState(false);
+  const [trainerLoginId, setTrainerLoginId] = useState("");
+  const [trainerLoginError, setTrainerLoginError] = useState("");
 
   useEffect(() => {
     (async () => {
@@ -194,6 +199,31 @@ export function ClientView({
     setWeightError("");
   };
 
+  const handleTrainerLogin = async () => {
+    if (!trainerLoginId.trim()) {
+      setTrainerLoginError(t("trainerIdRequired"));
+      return;
+    }
+    
+    setTrainerLoginError("");
+    
+    try {
+      // Validate the trainer ID format and check if trainer exists
+      const res = await fetch(`/api/trainers/${trainerLoginId}/clients`);
+      
+      if (res.ok) {
+        // Trainer exists, redirect to trainer page
+        window.location.href = `/${lang}/t/${trainerLoginId}`;
+      } else {
+        const data = await res.json();
+        setTrainerLoginError(data.error || t("invalidTrainerId"));
+      }
+    } catch (err) {
+      setTrainerLoginError(t("invalidTrainerId"));
+      console.error("Trainer login error:", err);
+    }
+  };
+
 
   const groupLogsByDay = (logs: WorkoutLog[]) => {
     const grouped: { [key: string]: WorkoutLog[] } = {};
@@ -246,47 +276,98 @@ export function ClientView({
       {/* Header */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-2xl">
-            {client.name}
-          </CardTitle>
-          <p className="text-sm text-muted-foreground mt-1">
-            {t("clientHeader")}
-          </p>
+          <div className="flex items-start justify-between">
+            <div className="flex-1">
+              <CardTitle className="text-2xl">
+                {client.name}
+              </CardTitle>
+              <p className="text-sm text-muted-foreground mt-1">
+                {t("clientHeader")}
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowTrainerLogin(!showTrainerLogin)}
+              className="ml-4"
+            >
+              <LogIn className="size-4" />
+              {t("trainerLogin")}
+            </Button>
+          </div>
+          {showTrainerLogin && (
+            <div className="mt-4 pt-4 border-t space-y-2">
+              {trainerLoginError && (
+                <Alert variant="destructive">
+                  <AlertDescription>{trainerLoginError}</AlertDescription>
+                </Alert>
+              )}
+              <div className="flex gap-2">
+                <Input
+                  value={trainerLoginId}
+                  onChange={(e) => {
+                    setTrainerLoginId(e.target.value);
+                    setTrainerLoginError("");
+                  }}
+                  placeholder={t("trainerIdPlaceholder")}
+                  className="flex-1"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      handleTrainerLogin();
+                    }
+                  }}
+                />
+                <Button onClick={handleTrainerLogin}>
+                  <LogIn className="size-4" />
+                  {t("login")}
+                </Button>
+                <Button variant="outline" onClick={() => {
+                  setShowTrainerLogin(false);
+                  setTrainerLoginId("");
+                  setTrainerLoginError("");
+                }}>
+                  <X className="size-4" />
+                </Button>
+              </div>
+            </div>
+          )}
         </CardHeader>
       </Card>
 
       {/* Tab Navigation */}
-      <div className="flex gap-2 border-b">
-        <button
-          onClick={() => setActiveTab("workouts")}
-          className={`px-4 py-2 text-sm font-medium transition-colors ${
-            activeTab === "workouts"
-              ? "border-b-2 border-primary text-primary"
-              : "text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          {t("workoutHistory")}
-        </button>
-        <button
-          onClick={() => setActiveTab("progress")}
-          className={`px-4 py-2 text-sm font-medium transition-colors ${
-            activeTab === "progress"
-              ? "border-b-2 border-primary text-primary"
-              : "text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          {t("progressChart")}
-        </button>
-        <button
-          onClick={() => setActiveTab("plans")}
-          className={`px-4 py-2 text-sm font-medium transition-colors ${
-            activeTab === "plans"
-              ? "border-b-2 border-primary text-primary"
-              : "text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          {t("workoutsPlan")} & {t("dietPlan")}
-        </button>
+      <div className="overflow-x-auto -mx-4 px-4">
+        <div className="flex gap-2 border-b min-w-max">
+          <button
+            onClick={() => setActiveTab("workouts")}
+            className={`px-4 py-2 text-sm font-medium transition-colors whitespace-nowrap ${
+              activeTab === "workouts"
+                ? "border-b-2 border-primary text-primary"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {t("workoutHistory")}
+          </button>
+          <button
+            onClick={() => setActiveTab("progress")}
+            className={`px-4 py-2 text-sm font-medium transition-colors whitespace-nowrap ${
+              activeTab === "progress"
+                ? "border-b-2 border-primary text-primary"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {t("progressChart")}
+          </button>
+          <button
+            onClick={() => setActiveTab("plans")}
+            className={`px-4 py-2 text-sm font-medium transition-colors whitespace-nowrap ${
+              activeTab === "plans"
+                ? "border-b-2 border-primary text-primary"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {t("workoutsPlan")} & {t("dietPlan")}
+          </button>
+        </div>
       </div>
 
       {/* Tab Content */}
@@ -303,7 +384,6 @@ export function ClientView({
                     onClick={() => navigateWorkoutMonth(-1)}
                     title={t("previous")}
                   >
-                    <ChevronLeft className="size-4" />
                     <span className="hidden md:inline">{t("previous")}</span>
                   </Button>
                   <Button
@@ -326,7 +406,6 @@ export function ClientView({
                     title={t("next")}
                   >
                     <span className="hidden md:inline">{t("next")}</span>
-                    <ChevronRight className="size-4" />
                   </Button>
                 </div>
               )}
@@ -439,6 +518,7 @@ export function ClientView({
                                             <span className="font-medium text-sm">{ex.name}</span>
                                             <span className="text-xs text-muted-foreground ml-2">
                                               {ex.sets} {t("setsLabel")} × {ex.reps} {t("repsLabel")}
+                                              {ex.weight && ` @ ${ex.weight} ${t("weightUnit")}`}
                                             </span>
                                           </div>
                                         </div>
@@ -567,7 +647,6 @@ export function ClientView({
                           onClick={() => navigateWeightMonth(-1)}
                           title={t("previous")}
                         >
-                          <ChevronLeft className="size-4" />
                           <span className="hidden md:inline">{t("previous")}</span>
                         </Button>
                         <Button
@@ -590,7 +669,6 @@ export function ClientView({
                           title={t("next")}
                         >
                           <span className="hidden md:inline">{t("next")}</span>
-                          <ChevronRight className="size-4" />
                         </Button>
                       </div>
                     </div>

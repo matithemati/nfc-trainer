@@ -25,7 +25,7 @@ export async function POST(
   const body = await req.json();
   const { date, exercises } = body as {
     date: string;
-    exercises: { name: string; sets: number; reps: number }[];
+    exercises: { name: string; sets: number; reps: number; weight?: number }[];
   };
 
   const db = await getDb();
@@ -46,7 +46,7 @@ export async function PATCH(
   const { logId, date, exercises } = body as {
     logId: string;
     date?: string;
-    exercises?: { name: string; sets: number; reps: number }[];
+    exercises?: { name: string; sets: number; reps: number; weight?: number }[];
   };
 
   if (!logId) {
