@@ -6,6 +6,6 @@ export default async function TrainerPage({
 }: {
   params: Promise<{ lang: string; trainerId: string }> | { lang: string; trainerId: string };
 }) {
-  const { lang, trainerId } = await Promise.resolve(params);
-  return <TrainerView trainerId={trainerId} lang={lang} />;
+  const { lang } = await Promise.resolve(params);
+  return <TrainerView lang={lang} />;
 }
