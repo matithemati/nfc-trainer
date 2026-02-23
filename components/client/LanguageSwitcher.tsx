@@ -20,7 +20,7 @@ export function LanguageSwitcher({ lang }: Props) {
 
   return (
     <Select value={lang} onValueChange={onChange}>
-      <SelectTrigger className="w-[120px] text-black">
+      <SelectTrigger className="w-[70px] sm:w-[120px] text-black">
         <SelectValue />
       </SelectTrigger>
       <SelectContent>

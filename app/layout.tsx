@@ -1,9 +1,16 @@
-// Root layout - just pass through children
-// The actual html/body is handled by app/[lang]/layout.tsx
+// Root layout - provides html/body tags for all routes
+import "./globals.css";
+
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  return children;
+  return (
+    <html lang="en">
+      <body className="min-h-screen text-slate-100" suppressHydrationWarning>
+        {children}
+      </body>
+    </html>
+  );
 }

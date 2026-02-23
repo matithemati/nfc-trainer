@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { getMessages } from "@/lib/i18n";
+import { ClientMenuBar } from "./ClientMenuBar";
 import { 
   ChevronLeft, 
   ChevronRight, 
@@ -18,7 +19,7 @@ import {
   Pencil,
   Trash2,
   X,
-  LogIn
+  AlertCircle
 } from "lucide-react";
 
 type Trainer = {
@@ -26,6 +27,7 @@ type Trainer = {
   name: string;
   maxClients: number;
   isPaid: boolean;
+  expirationDate?: string | null;
 };
 
 type Client = {
@@ -90,9 +92,6 @@ export function ClientView({
   const [activeTab, setActiveTab] = useState<"workouts" | "progress" | "plans">("workouts");
   const [showWorkoutPlan, setShowWorkoutPlan] = useState(false);
   const [showDietPlan, setShowDietPlan] = useState(false);
-  const [showTrainerLogin, setShowTrainerLogin] = useState(false);
-  const [trainerLoginId, setTrainerLoginId] = useState("");
-  const [trainerLoginError, setTrainerLoginError] = useState("");
 
   useEffect(() => {
     (async () => {
@@ -199,31 +198,6 @@ export function ClientView({
     setWeightError("");
   };
 
-  const handleTrainerLogin = async () => {
-    if (!trainerLoginId.trim()) {
-      setTrainerLoginError(t("trainerIdRequired"));
-      return;
-    }
-    
-    setTrainerLoginError("");
-    
-    try {
-      // Validate the trainer ID format and check if trainer exists
-      const res = await fetch(`/api/trainers/${trainerLoginId}/clients`);
-      
-      if (res.ok) {
-        // Trainer exists, redirect to trainer page
-        window.location.href = `/${lang}/t/${trainerLoginId}`;
-      } else {
-        const data = await res.json();
-        setTrainerLoginError(data.error || t("invalidTrainerId"));
-      }
-    } catch (err) {
-      setTrainerLoginError(t("invalidTrainerId"));
-      console.error("Trainer login error:", err);
-    }
-  };
-
 
   const groupLogsByDay = (logs: WorkoutLog[]) => {
     const grouped: { [key: string]: WorkoutLog[] } = {};
@@ -265,13 +239,47 @@ export function ClientView({
 
   if (!client) return <div>{t("loading")}</div>;
 
+  // Check if trainer's membership is active
+  const expirationDate = trainer?.expirationDate 
+    ? new Date(trainer.expirationDate)
+    : null;
+  
+  const isExpired = expirationDate 
+    ? expirationDate < new Date()
+    : false;
+  
+  const isMembershipActive = trainer ? (trainer.isPaid && !isExpired) : false;
+
+  // If membership is not active, show blocking message and hide all data
+  if (trainer && !isMembershipActive) {
+    return (
+      <div className="space-y-4">
+        <ClientMenuBar lang={lang} />
+        <Card className="w-full border-2 border-destructive/20">
+          <CardContent className="pt-8 pb-8">
+            <div className="flex flex-col items-center justify-center text-center space-y-6 max-w-2xl mx-auto">
+              <div className="rounded-full bg-destructive/10 p-4">
+                <AlertCircle className="size-12 text-destructive" />
+              </div>
+              
+              <div className="space-y-3">
+                <h2 className="text-2xl font-bold text-foreground">
+                  {t("trainerMembershipExpired")}
+                </h2>
+                <p className="text-muted-foreground text-base leading-relaxed">
+                  {t("trainerMembershipExpiredMessage")}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
-      {trainer && !trainer.isPaid && (
-        <Alert variant="destructive">
-          <AlertDescription>{t("unpaidWarningClient")}</AlertDescription>
-        </Alert>
-      )}
+      <ClientMenuBar lang={lang} />
 
       {/* Header */}
       <Card>
@@ -285,52 +293,7 @@ export function ClientView({
                 {t("clientHeader")}
               </p>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowTrainerLogin(!showTrainerLogin)}
-              className="ml-4"
-            >
-              <LogIn className="size-4" />
-              {t("trainerLogin")}
-            </Button>
           </div>
-          {showTrainerLogin && (
-            <div className="mt-4 pt-4 border-t space-y-2">
-              {trainerLoginError && (
-                <Alert variant="destructive">
-                  <AlertDescription>{trainerLoginError}</AlertDescription>
-                </Alert>
-              )}
-              <div className="flex gap-2">
-                <Input
-                  value={trainerLoginId}
-                  onChange={(e) => {
-                    setTrainerLoginId(e.target.value);
-                    setTrainerLoginError("");
-                  }}
-                  placeholder={t("trainerIdPlaceholder")}
-                  className="flex-1"
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      handleTrainerLogin();
-                    }
-                  }}
-                />
-                <Button onClick={handleTrainerLogin}>
-                  <LogIn className="size-4" />
-                  {t("login")}
-                </Button>
-                <Button variant="outline" onClick={() => {
-                  setShowTrainerLogin(false);
-                  setTrainerLoginId("");
-                  setTrainerLoginError("");
-                }}>
-                  <X className="size-4" />
-                </Button>
-              </div>
-            </div>
-          )}
         </CardHeader>
       </Card>
 

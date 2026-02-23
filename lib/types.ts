@@ -2,8 +2,10 @@
 export type Trainer = {
     _id: string; // UUID trenera = NFC
     name: string;
+    email: string;
     maxClients: number;
     isPaid: boolean;
+    expirationDate?: string | null; // ISO date string
   };
   
   export type Client = {

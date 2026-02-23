@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import React from "react";
+import { signOut as nextAuthSignOut } from "next-auth/react";
 import { Card, CardHeader, CardContent, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +11,8 @@ import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { getMessages } from "@/lib/i18n";
 import { WeightChart } from "./Charts";
+import { TrainerMenuBar } from "./TrainerMenuBar";
+import { MembershipStatus } from "./MembershipStatus";
 import { 
   Plus, 
   Trash2, 
@@ -22,14 +25,18 @@ import {
   ChevronRight,
   Calendar,
   Save,
-  Search
+  Search,
+  AlertCircle,
+  Mail
 } from "lucide-react";
 
 type Trainer = {
   _id: string;
   name: string;
+  email: string;
   maxClients: number;
   isPaid: boolean;
+  expirationDate?: string; // ISO date string
 };
 
 type Client = {
@@ -57,16 +64,13 @@ type WorkoutLog = {
 type WeightPoint = { _id?: string; date: string; weight: number };
 
 export function TrainerView({
-  trainerId,
   lang,
 }: {
-  trainerId: string;
   lang: string;
 }) {
   const { t, lang: currentLang } = getMessages(lang);
   const [trainer, setTrainer] = useState<Trainer | null>(null);
   const [clients, setClients] = useState<Client[]>([]);
-  const [newClientName, setNewClientName] = useState("");
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [workoutPlan, setWorkoutPlan] = useState("");
   const [dietPlan, setDietPlan] = useState("");
@@ -79,7 +83,6 @@ export function TrainerView({
   } | null>(null);
   const [expandedDays, setExpandedDays] = useState<Set<string>>(new Set());
   const [expandedClientDetails, setExpandedClientDetails] = useState<Set<string>>(new Set());
-  const [showCreateClient, setShowCreateClient] = useState(false);
   const [workoutHistoryMonth, setWorkoutHistoryMonth] = useState(new Date().getMonth());
   const [workoutHistoryYear, setWorkoutHistoryYear] = useState(new Date().getFullYear());
   const [exerciseNames, setExerciseNames] = useState<string[]>([]);
@@ -105,7 +108,7 @@ export function TrainerView({
 
   const load = async () => {
     try {
-      const res = await fetch(`/api/trainers/${trainerId}/clients`);
+      const res = await fetch(`/api/trainer/clients`);
       
       // Check if response has content before parsing JSON
       const text = await res.text();
@@ -128,6 +131,9 @@ export function TrainerView({
         setClients(data.clients);
         setExerciseNames((data.trainer as any).exerciseNames || []);
       } else {
+        if (res.status === 401) {
+          window.location.href = `/${lang}/auth/signin`;
+        }
         setError(data.error || "Failed to load trainer");
       }
     } catch (err) {
@@ -138,34 +144,16 @@ export function TrainerView({
 
   useEffect(() => {
     load();
-  }, [trainerId]);
-
-  const createClient = async () => {
-    setError("");
-    const res = await fetch(`/api/trainers/${trainerId}/clients`, {
-      method: "POST",
-      body: JSON.stringify({ name: newClientName }),
-      headers: { "Content-Type": "application/json" },
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      setError(
-        data.error === "Max clients reached"
-          ? t("maxClientsReached")
-          : data.error
-      );
-      return;
-    }
-    setClients((prev) => [...prev, data]);
-    setNewClientName("");
-  };
+  }, []);
 
   const loadExerciseNames = async () => {
     try {
-      const res = await fetch(`/api/trainers/${trainerId}/exercise-names`);
+      const res = await fetch(`/api/trainer/exercise-names`);
       if (res.ok) {
         const data = await res.json();
         setExerciseNames(data.exerciseNames || []);
+      } else if (res.status === 401) {
+        window.location.href = `/${lang}/auth/signin`;
       }
     } catch (err) {
       console.error("Failed to load exercise names:", err);
@@ -175,7 +163,7 @@ export function TrainerView({
   const addExerciseName = async () => {
     if (!newExerciseName.trim()) return;
     try {
-      const res = await fetch(`/api/trainers/${trainerId}/exercise-names`, {
+      const res = await fetch(`/api/trainer/exercise-names`, {
         method: "POST",
         body: JSON.stringify({ exerciseName: newExerciseName }),
         headers: { "Content-Type": "application/json" },
@@ -184,6 +172,8 @@ export function TrainerView({
         const data = await res.json();
         setExerciseNames(data.exerciseNames || []);
         setNewExerciseName("");
+      } else if (res.status === 401) {
+        window.location.href = `/${lang}/auth/signin`;
       }
     } catch (err) {
       console.error("Failed to add exercise name:", err);
@@ -192,12 +182,14 @@ export function TrainerView({
 
   const deleteExerciseName = async (name: string) => {
     try {
-      const res = await fetch(`/api/trainers/${trainerId}/exercise-names?exerciseName=${encodeURIComponent(name)}`, {
+      const res = await fetch(`/api/trainer/exercise-names?exerciseName=${encodeURIComponent(name)}`, {
         method: "DELETE",
       });
       if (res.ok) {
         const data = await res.json();
         setExerciseNames(data.exerciseNames || []);
+      } else if (res.status === 401) {
+        window.location.href = `/${lang}/auth/signin`;
       }
     } catch (err) {
       console.error("Failed to delete exercise name:", err);
@@ -205,10 +197,8 @@ export function TrainerView({
   };
 
   useEffect(() => {
-    if (trainerId) {
-      loadExerciseNames();
-    }
-  }, [trainerId]);
+    loadExerciseNames();
+  }, []);
 
   const selectClient = async (c: Client) => {
     setSelectedClient(c);
@@ -422,6 +412,24 @@ export function TrainerView({
     setEditingWorkout(null);
   };
 
+  const handleLogout = async () => {
+    try {
+      // Clear any cached data
+      setTrainer(null);
+      setClients([]);
+      
+      // Use NextAuth signOut which properly clears the session
+      await nextAuthSignOut({ 
+        redirect: true,
+        callbackUrl: `/${lang}/auth/signin`
+      });
+    } catch (error) {
+      console.error("Logout error:", error);
+      // Fallback: redirect manually
+      window.location.replace(`/${lang}/auth/signin`);
+    }
+  };
+
   if (!trainer && !error) return <div>{t("loading")}</div>;
   
   if (error && !trainer) {
@@ -434,8 +442,66 @@ export function TrainerView({
 
   if (!trainer) return null;
 
+  // Check if membership is active
+  const expirationDate = trainer.expirationDate 
+    ? new Date(trainer.expirationDate)
+    : null;
+  
+  const isExpired = expirationDate 
+    ? expirationDate < new Date()
+    : false;
+  
+  const isMembershipActive = trainer.isPaid && !isExpired;
+
+  // If membership is not active, show blocking message
+  if (!isMembershipActive) {
+    return (
+      <div className="space-y-4">
+        <TrainerMenuBar
+          trainer={trainer}
+          clientsCount={clients.length}
+          lang={lang}
+          onLogout={handleLogout}
+        />
+        
+        <Card className="w-full border-2 border-destructive/20">
+          <CardContent className="pt-8 pb-8">
+            <div className="flex flex-col items-center justify-center text-center space-y-6 max-w-2xl mx-auto">
+              <div className="rounded-full bg-destructive/10 p-4">
+                <AlertCircle className="size-12 text-destructive" />
+              </div>
+              
+              <div className="space-y-3">
+                <h2 className="text-2xl font-bold text-foreground">
+                  {t("membershipInactive")}
+                </h2>
+                <p className="text-muted-foreground text-base leading-relaxed">
+                  {t("contactAdminMessage")}
+                </p>
+              </div>
+              
+              <div className="flex items-center gap-2 px-4 py-3 bg-muted/50 rounded-lg border border-border">
+                <Mail className="size-5 text-muted-foreground" />
+                <span className="text-sm font-medium text-foreground">
+                  {t("contactAdmin")}
+                </span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
+      <TrainerMenuBar
+        trainer={trainer}
+        clientsCount={clients.length}
+        lang={lang}
+        onLogout={handleLogout}
+      />
+      
       {!trainer.isPaid && (
         <Alert variant="destructive">
           <AlertDescription>{t("trainerUnpaid")}</AlertDescription>
@@ -443,58 +509,11 @@ export function TrainerView({
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Card className="w-full">
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="font-semibold text-lg">
-                  {t("trainerHeader")}: {trainer.name}
-                </div>
-                <div className="text-sm text-muted-foreground mt-1">
-                  {t("clients")}: {clients.length} / {trainer.maxClients}
-                </div>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowCreateClient(!showCreateClient)}
-              >
-                {showCreateClient ? (
-                  <>
-                    <X className="size-4" />
-                    {t("cancel")}
-                  </>
-                ) : (
-                  <>
-                    <Plus className="size-4" />
-                    {t("createClient")}
-                  </>
-                )}
-              </Button>
-            </div>
-            {showCreateClient && (
-              <div className="mt-4 pt-4 border-t space-y-2">
-                {error && (
-                  <Alert variant="destructive">
-                    <AlertDescription>{error}</AlertDescription>
-                  </Alert>
-                )}
-                <div className="flex gap-2">
-                  <Input
-                    value={newClientName}
-                    onChange={(e) => setNewClientName(e.target.value)}
-                    placeholder={t("clientName")}
-                    className="flex-1"
-                  />
-                  <Button onClick={createClient}>
-                    <Check className="size-4" />
-                    {t("save")}
-                  </Button>
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        <MembershipStatus
+          trainer={trainer}
+          clientsCount={clients.length}
+          lang={lang}
+        />
         <Card className="w-full">
           <CardHeader>
             <CardTitle>{t("exerciseNames")}</CardTitle>

@@ -1,0 +1,49 @@
+// lib/auth.ts
+import { auth } from "@/auth";
+import { getDb } from "@/lib/db";
+import { ObjectId } from "mongodb";
+
+export async function getCurrentTrainer() {
+  const session = await auth();
+  
+  if (!session?.user?.email) {
+    return null;
+  }
+
+  const db = await getDb();
+  const trainer = await db
+    .collection("trainers")
+    .findOne({ email: session.user.email });
+
+  return trainer;
+}
+
+export async function requireTrainer() {
+  const trainer = await getCurrentTrainer();
+  
+  if (!trainer) {
+    throw new Error("Unauthorized: Trainer not found");
+  }
+
+  return trainer;
+}
+
+export async function verifyClientOwnership(clientId: string) {
+  const trainer = await requireTrainer();
+  const db = await getDb();
+  
+  const client = await db
+    .collection("clients")
+    .findOne({ _id: clientId } as any);
+
+  if (!client) {
+    throw new Error("Client not found");
+  }
+
+  // Check if client belongs to trainer
+  if (client.trainerId.toString() !== trainer._id.toString()) {
+    throw new Error("Unauthorized: Client does not belong to trainer");
+  }
+
+  return { trainer, client };
+}
