@@ -681,7 +681,7 @@ export function TrainersManagement({ lang }: { lang: string }) {
               {selectedTrainer && t("prolongMembership")}
             </DialogDescription>
           </DialogHeader>
-          <div className="flex gap-2 py-4">
+          <div className="grid grid-cols-2 gap-2 py-4">
             <Button onClick={() => handleProlong(1)} className="bg-black text-white hover:bg-black/90">
               <Calendar className="h-4 w-4" />
               {t("prolong1Month")}
