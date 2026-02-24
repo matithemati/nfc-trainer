@@ -14,10 +14,14 @@ export async function GET(
     const { clientId } = await Promise.resolve(params);
     await verifyClientOwnership(clientId);
 
+    if (!ObjectId.isValid(clientId)) {
+      return NextResponse.json({ error: "Invalid client ID format" }, { status: 400 });
+    }
+
     const db = await getDb();
     const weights = await db
       .collection("weights")
-      .find({ clientId })
+      .find({ clientId: new ObjectId(clientId) })
       .sort({ date: 1 })
       .toArray();
     return NextResponse.json(weights);
@@ -49,9 +53,13 @@ export async function POST(
 
     const db = await getDb();
     
+    if (!ObjectId.isValid(clientId)) {
+      return NextResponse.json({ error: "Invalid client ID format" }, { status: 400 });
+    }
+
     // Check if weight already exists for this date
     const existing = await db.collection("weights").findOne({ 
-      clientId, 
+      clientId: new ObjectId(clientId), 
       date 
     });
     
@@ -62,7 +70,7 @@ export async function POST(
       );
     }
 
-    const entry = { clientId, date, weight };
+    const entry = { clientId: new ObjectId(clientId), date, weight };
     await db.collection("weights").insertOne(entry);
     return NextResponse.json(entry, { status: 201 });
   } catch (error) {
@@ -104,10 +112,14 @@ export async function PATCH(
 
     const db = await getDb();
     
+    if (!ObjectId.isValid(clientId)) {
+      return NextResponse.json({ error: "Invalid client ID format" }, { status: 400 });
+    }
+
     // If date is being changed, check if another entry exists for the new date
     if (date) {
       const existing = await db.collection("weights").findOne({
-        clientId,
+        clientId: new ObjectId(clientId),
         date,
         _id: { $ne: new ObjectId(weightId) }
       });
@@ -125,7 +137,7 @@ export async function PATCH(
     if (weight !== undefined) updateData.weight = weight;
 
     const result = await db.collection("weights").updateOne(
-      { _id: new ObjectId(weightId), clientId } as any,
+      { _id: new ObjectId(weightId), clientId: new ObjectId(clientId) },
       { $set: updateData }
     );
 
@@ -174,11 +186,15 @@ export async function DELETE(
       );
     }
 
+    if (!ObjectId.isValid(clientId)) {
+      return NextResponse.json({ error: "Invalid client ID format" }, { status: 400 });
+    }
+
     const db = await getDb();
     const result = await db.collection("weights").deleteOne({
       _id: new ObjectId(weightId),
-      clientId
-    } as any);
+      clientId: new ObjectId(clientId)
+    });
 
     if (result.deletedCount === 0) {
       return NextResponse.json(

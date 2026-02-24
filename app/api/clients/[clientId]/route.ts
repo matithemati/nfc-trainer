@@ -42,8 +42,12 @@ export async function PATCH(
     const body = await req.json();
     const { workoutPlan, dietPlan, name } = body;
 
+    if (!ObjectId.isValid(clientId)) {
+      return NextResponse.json({ error: "Invalid client ID format" }, { status: 400 });
+    }
+
     await db.collection("clients").updateOne(
-      { _id: clientId } as any,
+      { _id: new ObjectId(clientId) },
       {
         $set: {
           ...(name ? { name } : {}),
@@ -55,7 +59,7 @@ export async function PATCH(
 
     const client = await db
       .collection("clients")
-      .findOne({ _id: clientId } as any);
+      .findOne({ _id: new ObjectId(clientId) });
 
     if (!client) {
       return NextResponse.json({ error: "Client not found" }, { status: 404 });

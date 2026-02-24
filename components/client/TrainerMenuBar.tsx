@@ -12,7 +12,6 @@ type Trainer = {
   name: string;
   email: string;
   maxClients: number;
-  isPaid: boolean;
   expirationDate?: string | null;
 };
 
@@ -36,7 +35,8 @@ export function TrainerMenuBar({ trainer, clientsCount, lang, onLogout }: Props)
     ? expirationDate < new Date()
     : false;
   
-  const isMembershipActive = trainer.isPaid && !isExpired;
+  // Membership is active if expirationDate is null (no expiration) or in the future
+  const isMembershipActive = !expirationDate || !isExpired;
 
   return (
     <div className="flex items-center justify-between pb-3 mb-4">

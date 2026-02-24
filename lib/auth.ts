@@ -32,9 +32,14 @@ export async function verifyClientOwnership(clientId: string) {
   const trainer = await requireTrainer();
   const db = await getDb();
   
+  // Validate ObjectId format
+  if (!ObjectId.isValid(clientId)) {
+    throw new Error("Invalid client ID format");
+  }
+
   const client = await db
     .collection("clients")
-    .findOne({ _id: clientId } as any);
+    .findOne({ _id: new ObjectId(clientId) });
 
   if (!client) {
     throw new Error("Client not found");

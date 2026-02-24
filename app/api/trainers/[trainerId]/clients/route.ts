@@ -74,7 +74,7 @@ export async function POST(
       );
     }
 
-    const clientId = crypto.randomUUID();
+    const clientId = new ObjectId();
 
     const client = {
       _id: clientId,
@@ -84,7 +84,7 @@ export async function POST(
       dietPlan: "",
     };
 
-    await db.collection("clients").insertOne(client as any);
+    await db.collection("clients").insertOne(client);
 
     return NextResponse.json(client, { status: 201 });
   } catch (error) {

@@ -35,8 +35,7 @@ type Trainer = {
   name: string;
   email: string;
   maxClients: number;
-  isPaid: boolean;
-  expirationDate?: string; // ISO date string
+  expirationDate?: string | null; // ISO date string
 };
 
 type Client = {
@@ -451,7 +450,8 @@ export function TrainerView({
     ? expirationDate < new Date()
     : false;
   
-  const isMembershipActive = trainer.isPaid && !isExpired;
+  // Membership is active if expirationDate is null (no expiration) or in the future
+  const isMembershipActive = !expirationDate || !isExpired;
 
   // If membership is not active, show blocking message
   if (!isMembershipActive) {
@@ -502,11 +502,6 @@ export function TrainerView({
         onLogout={handleLogout}
       />
       
-      {!trainer.isPaid && (
-        <Alert variant="destructive">
-          <AlertDescription>{t("trainerUnpaid")}</AlertDescription>
-        </Alert>
-      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <MembershipStatus
@@ -677,13 +672,13 @@ export function TrainerView({
                           <div className="px-3 pb-3 pt-0 border-t">
                             {/* Tab Navigation */}
                             <div className="overflow-x-auto -mx-3 px-3">
-                              <div className="flex gap-2 border-b pt-3 min-w-max">
+                              <div className="flex gap-2 border-b bg-card pt-3 min-w-max">
                                 <button
                                   onClick={() => setClientActiveTab("workouts")}
                                   className={`px-4 py-2 text-sm font-medium transition-colors whitespace-nowrap ${
                                     clientActiveTab === "workouts"
-                                      ? "border-b-2 border-primary text-primary"
-                                      : "text-muted-foreground hover:text-foreground"
+                                      ? "border-b-2 border-primary text-foreground font-semibold bg-muted/30"
+                                      : "text-foreground/70 hover:text-foreground hover:bg-muted/50"
                                   }`}
                                 >
                                   {t("addWorkout")}
@@ -692,8 +687,8 @@ export function TrainerView({
                                   onClick={() => setClientActiveTab("history")}
                                   className={`px-4 py-2 text-sm font-medium transition-colors whitespace-nowrap ${
                                     clientActiveTab === "history"
-                                      ? "border-b-2 border-primary text-primary"
-                                      : "text-muted-foreground hover:text-foreground"
+                                      ? "border-b-2 border-primary text-foreground font-semibold bg-muted/30"
+                                      : "text-foreground/70 hover:text-foreground hover:bg-muted/50"
                                   }`}
                                 >
                                   {t("workoutHistory")}
@@ -702,8 +697,8 @@ export function TrainerView({
                                   onClick={() => setClientActiveTab("progress")}
                                   className={`px-4 py-2 text-sm font-medium transition-colors whitespace-nowrap ${
                                     clientActiveTab === "progress"
-                                      ? "border-b-2 border-primary text-primary"
-                                      : "text-muted-foreground hover:text-foreground"
+                                      ? "border-b-2 border-primary text-foreground font-semibold bg-muted/30"
+                                      : "text-foreground/70 hover:text-foreground hover:bg-muted/50"
                                   }`}
                                 >
                                   {t("progressChart")}
@@ -712,8 +707,8 @@ export function TrainerView({
                                   onClick={() => setClientActiveTab("plans")}
                                   className={`px-4 py-2 text-sm font-medium transition-colors whitespace-nowrap ${
                                     clientActiveTab === "plans"
-                                      ? "border-b-2 border-primary text-primary"
-                                      : "text-muted-foreground hover:text-foreground"
+                                      ? "border-b-2 border-primary text-foreground font-semibold bg-muted/30"
+                                      : "text-foreground/70 hover:text-foreground hover:bg-muted/50"
                                   }`}
                                 >
                                   {t("workoutsPlan")} & {t("dietPlan")}

@@ -14,10 +14,14 @@ export async function GET(
     const { clientId } = await Promise.resolve(params);
     await verifyClientOwnership(clientId);
 
+    if (!ObjectId.isValid(clientId)) {
+      return NextResponse.json({ error: "Invalid client ID format" }, { status: 400 });
+    }
+
     const db = await getDb();
     const logs = await db
       .collection("workouts")
-      .find({ clientId })
+      .find({ clientId: new ObjectId(clientId) })
       .sort({ date: 1 })
       .toArray();
     return NextResponse.json(logs);
@@ -50,8 +54,12 @@ export async function POST(
       exercises: { name: string; sets: number; reps: number; weight?: number }[];
     };
 
+    if (!ObjectId.isValid(clientId)) {
+      return NextResponse.json({ error: "Invalid client ID format" }, { status: 400 });
+    }
+
     const db = await getDb();
-    const log = { clientId, date, exercises };
+    const log = { clientId: new ObjectId(clientId), date, exercises };
     const result = await db.collection("workouts").insertOne(log);
     const inserted = await db
       .collection("workouts")
@@ -96,8 +104,12 @@ export async function PATCH(
     if (date !== undefined) updateData.date = date;
     if (exercises !== undefined) updateData.exercises = exercises;
 
+    if (!ObjectId.isValid(clientId)) {
+      return NextResponse.json({ error: "Invalid client ID format" }, { status: 400 });
+    }
+
     const result = await db.collection("workouts").updateOne(
-      { _id: new ObjectId(logId), clientId } as any,
+      { _id: new ObjectId(logId), clientId: new ObjectId(clientId) },
       { $set: updateData }
     );
 
@@ -140,11 +152,15 @@ export async function DELETE(
       return NextResponse.json({ error: "logId is required" }, { status: 400 });
     }
 
+    if (!ObjectId.isValid(clientId)) {
+      return NextResponse.json({ error: "Invalid client ID format" }, { status: 400 });
+    }
+
     const db = await getDb();
     const result = await db.collection("workouts").deleteOne({
       _id: new ObjectId(logId),
-      clientId,
-    } as any);
+      clientId: new ObjectId(clientId),
+    });
 
     if (result.deletedCount === 0) {
       return NextResponse.json({ error: "Workout log not found" }, { status: 404 });

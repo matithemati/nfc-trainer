@@ -10,8 +10,7 @@ type Trainer = {
   name: string;
   email: string;
   maxClients: number;
-  isPaid: boolean;
-  expirationDate?: string; // ISO date string
+  expirationDate?: string | null; // ISO date string
 };
 
 type Props = {
@@ -23,14 +22,16 @@ type Props = {
 export function MembershipStatus({ trainer, clientsCount, lang }: Props) {
   const { t } = getMessages(lang);
   
-  const isActive = trainer.isPaid;
   const expirationDate = trainer.expirationDate 
     ? new Date(trainer.expirationDate)
     : null;
   
   const isExpired = expirationDate 
     ? expirationDate < new Date()
-    : !isActive;
+    : false;
+  
+  // Membership is active if expirationDate is null (no expiration) or in the future
+  const isActive = !expirationDate || !isExpired;
   
   const formatDate = (date: Date) => {
     return date.toLocaleDateString(lang === "pl" ? "pl-PL" : "en-US", {
@@ -45,8 +46,8 @@ export function MembershipStatus({ trainer, clientsCount, lang }: Props) {
       <CardHeader>
         <CardTitle className="flex items-center justify-between">
           <span>{t("membershipStatus")}</span>
-          <Badge variant={isActive && !isExpired ? "success" : "destructive"}>
-            {isActive && !isExpired ? t("active") : t("inactive")}
+          <Badge variant={isActive ? "success" : "destructive"}>
+            {isActive ? t("active") : t("inactive")}
           </Badge>
         </CardTitle>
       </CardHeader>

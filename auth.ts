@@ -20,21 +20,24 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (account?.provider === "google" && user.email) {
         const db = await getDb();
         
+        // Check if admin exists with this email
+        const admin = await db
+          .collection("admin")
+          .findOne({ email: user.email, disabled: { $ne: true } });
+        
+        if (admin) {
+          // Admin login - allow it
+          return true;
+        }
+        
         // Check if trainer exists with this email
         const trainer = await db
           .collection("trainers")
-          .findOne({ email: user.email });
+          .findOne({ email: user.email, deletedAt: { $exists: false } });
 
-        // If trainer doesn't exist, create one
+        // If trainer doesn't exist, don't allow login and don't create a document
         if (!trainer) {
-          await db.collection("trainers").insertOne({
-            email: user.email,
-            name: user.name || user.email.split("@")[0],
-            maxClients: 10,
-            isPaid: false,
-            exerciseNames: [],
-            expirationDate: null, // Will be set by admin
-          });
+          return false;
         }
 
         return true;
@@ -42,34 +45,53 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       return false;
     },
     async jwt({ token, user, account, trigger }) {
-      // On initial sign in, fetch trainer ID and store in token
+      // On initial sign in, fetch trainer/admin ID and store in token
       // Only do DB lookup on sign-in, not on token refresh
-      if (account && user?.email && !token.trainerId) {
+      if (account && user?.email && (!token.trainerId && !token.adminId)) {
         try {
           const db = await getDb();
-          const trainer = await db
-            .collection("trainers")
-            .findOne({ email: user.email });
           
-          if (trainer) {
-            token.trainerId = trainer._id.toString();
+          // Check for admin first
+          const admin = await db
+            .collection("admin")
+            .findOne({ email: user.email, disabled: { $ne: true } });
+          
+          if (admin) {
+            token.adminId = admin._id.toString();
+            token.isAdmin = true;
+          } else {
+            // Check for trainer
+            const trainer = await db
+              .collection("trainers")
+              .findOne({ email: user.email, deletedAt: { $exists: false } });
+            
+            if (trainer) {
+              token.trainerId = trainer._id.toString();
+              token.isAdmin = false;
+            }
           }
         } catch (error) {
           // If DB lookup fails, don't break the auth flow
-          console.error("Error fetching trainer in jwt callback:", error);
+          console.error("Error fetching user in jwt callback:", error);
         }
       }
       return token;
     },
     async session({ session, token }) {
-      // Add trainerId to session from token (no DB lookup needed)
+      // Add trainerId/adminId to session from token (no DB lookup needed)
       if (token.trainerId) {
         (session as any).trainerId = token.trainerId;
+        (session as any).isAdmin = false;
+      }
+      if (token.adminId) {
+        (session as any).adminId = token.adminId;
+        (session as any).isAdmin = true;
       }
       return session;
     },
   },
   pages: {
     signIn: "/pl/auth/signin",
+    error: "/pl/auth/signin",
   },
 });

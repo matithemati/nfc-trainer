@@ -26,7 +26,6 @@ type Trainer = {
   _id: string;
   name: string;
   maxClients: number;
-  isPaid: boolean;
   expirationDate?: string | null;
 };
 
@@ -248,7 +247,8 @@ export function ClientView({
     ? expirationDate < new Date()
     : false;
   
-  const isMembershipActive = trainer ? (trainer.isPaid && !isExpired) : false;
+  // Membership is active if expirationDate is null (no expiration) or in the future
+  const isMembershipActive = trainer ? (!trainer.expirationDate || !isExpired) : false;
 
   // If membership is not active, show blocking message and hide all data
   if (trainer && !isMembershipActive) {
@@ -299,13 +299,13 @@ export function ClientView({
 
       {/* Tab Navigation */}
       <div className="overflow-x-auto -mx-4 px-4">
-        <div className="flex gap-2 border-b min-w-max">
+        <div className="flex gap-2 border-b bg-card min-w-max">
           <button
             onClick={() => setActiveTab("workouts")}
             className={`px-4 py-2 text-sm font-medium transition-colors whitespace-nowrap ${
               activeTab === "workouts"
-                ? "border-b-2 border-primary text-primary"
-                : "text-muted-foreground hover:text-foreground"
+                ? "border-b-2 border-primary text-foreground font-semibold bg-muted/30"
+                : "text-foreground/70 hover:text-foreground hover:bg-muted/50"
             }`}
           >
             {t("workoutHistory")}
@@ -314,8 +314,8 @@ export function ClientView({
             onClick={() => setActiveTab("progress")}
             className={`px-4 py-2 text-sm font-medium transition-colors whitespace-nowrap ${
               activeTab === "progress"
-                ? "border-b-2 border-primary text-primary"
-                : "text-muted-foreground hover:text-foreground"
+                ? "border-b-2 border-primary text-foreground font-semibold bg-muted/30"
+                : "text-foreground/70 hover:text-foreground hover:bg-muted/50"
             }`}
           >
             {t("progressChart")}
@@ -324,8 +324,8 @@ export function ClientView({
             onClick={() => setActiveTab("plans")}
             className={`px-4 py-2 text-sm font-medium transition-colors whitespace-nowrap ${
               activeTab === "plans"
-                ? "border-b-2 border-primary text-primary"
-                : "text-muted-foreground hover:text-foreground"
+                ? "border-b-2 border-primary text-foreground font-semibold bg-muted/30"
+                : "text-foreground/70 hover:text-foreground hover:bg-muted/50"
             }`}
           >
             {t("workoutsPlan")} & {t("dietPlan")}
