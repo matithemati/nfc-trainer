@@ -299,10 +299,10 @@ export function ClientView({
 
       {/* Tab Navigation */}
       <div className="overflow-x-auto -mx-4 px-4">
-        <div className="flex gap-2 border-b bg-card min-w-max">
+        <div className="flex gap-2 border-b bg-card min-w-max rounded-t-xl">
           <button
             onClick={() => setActiveTab("workouts")}
-            className={`px-4 py-2 text-sm font-medium transition-colors whitespace-nowrap ${
+            className={`px-4 py-2 text-sm font-medium transition-colors whitespace-nowrap rounded-t-lg ${
               activeTab === "workouts"
                 ? "border-b-2 border-primary text-foreground font-semibold bg-muted/30"
                 : "text-foreground/70 hover:text-foreground hover:bg-muted/50"
@@ -312,7 +312,7 @@ export function ClientView({
           </button>
           <button
             onClick={() => setActiveTab("progress")}
-            className={`px-4 py-2 text-sm font-medium transition-colors whitespace-nowrap ${
+            className={`px-4 py-2 text-sm font-medium transition-colors whitespace-nowrap rounded-t-lg ${
               activeTab === "progress"
                 ? "border-b-2 border-primary text-foreground font-semibold bg-muted/30"
                 : "text-foreground/70 hover:text-foreground hover:bg-muted/50"
@@ -322,7 +322,7 @@ export function ClientView({
           </button>
           <button
             onClick={() => setActiveTab("plans")}
-            className={`px-4 py-2 text-sm font-medium transition-colors whitespace-nowrap ${
+            className={`px-4 py-2 text-sm font-medium transition-colors whitespace-nowrap rounded-t-lg ${
               activeTab === "plans"
                 ? "border-b-2 border-primary text-foreground font-semibold bg-muted/30"
                 : "text-foreground/70 hover:text-foreground hover:bg-muted/50"
@@ -347,6 +347,7 @@ export function ClientView({
                     onClick={() => navigateWorkoutMonth(-1)}
                     title={t("previous")}
                   >
+                    <ChevronLeft className="size-4 md:hidden" />
                     <span className="hidden md:inline">{t("previous")}</span>
                   </Button>
                   <Button
@@ -368,6 +369,7 @@ export function ClientView({
                     onClick={() => navigateWorkoutMonth(1)}
                     title={t("next")}
                   >
+                    <ChevronRight className="size-4 md:hidden" />
                     <span className="hidden md:inline">{t("next")}</span>
                   </Button>
                 </div>

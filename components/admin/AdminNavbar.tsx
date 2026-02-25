@@ -6,6 +6,7 @@ import { signOut } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { getMessages } from "@/lib/i18n";
 import { LanguageSwitcher } from "@/components/client/LanguageSwitcher";
+import { ThemeToggle } from "@/components/client/ThemeToggle";
 import { 
   LayoutDashboard, 
   UserCheck, 
@@ -93,6 +94,7 @@ export function AdminNavbar({ lang }: { lang: string }) {
 
         {/* Right Side Actions */}
         <div className="flex items-center gap-2">
+          <ThemeToggle lang={lang} />
           <LanguageSwitcher lang={lang as "pl" | "en"} />
           <Button
             variant="ghost"

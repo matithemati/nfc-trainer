@@ -285,14 +285,14 @@ export function TrainersManagement({ lang }: { lang: string }) {
                 setPage(1);
               }}
             />
-            <Label htmlFor="showDeleted" className="cursor-pointer">
+            <Label htmlFor="showDeleted" className="cursor-pointer mb-0">
               {t("showDeleted")}
             </Label>
           </div>
         </div>
         <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
           <DialogTrigger asChild>
-            <Button className="bg-black text-white hover:bg-black/90">
+            <Button className="bg-black text-white hover:bg-black/90 dark:bg-primary dark:text-primary-foreground dark:hover:bg-primary/90">
               <Plus className="h-4 w-4" />
               {t("createTrainer")}
             </Button>
@@ -326,7 +326,7 @@ export function TrainersManagement({ lang }: { lang: string }) {
                   <X className="h-4 w-4" />
                   {t("cancel")}
                 </Button>
-                <Button type="submit" className="bg-black text-white hover:bg-black/90">
+                <Button type="submit" className="bg-black text-white hover:bg-black/90 dark:bg-primary dark:text-primary-foreground dark:hover:bg-primary/90">
                   <Save className="h-4 w-4" />
                   {t("save")}
                 </Button>
@@ -450,7 +450,7 @@ export function TrainersManagement({ lang }: { lang: string }) {
                   {/* Top row: Page info and page size selector */}
                   <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
                     <div className="text-sm text-muted-foreground">
-                      {t("page")} {pagination.page} / {pagination.totalPages} ({pagination.total} items)
+                      {t("page")} {pagination.page} / {pagination.totalPages} ({pagination.total} {t("items")})
                     </div>
                     <div className="flex items-center gap-2">
                       <Label className="text-sm whitespace-nowrap">{t("perPage") || "Per page"}:</Label>
@@ -546,7 +546,8 @@ export function TrainersManagement({ lang }: { lang: string }) {
                               variant={isActive ? "secondary" : "outline"}
                               size="sm"
                               onClick={() => setPage(pageNum as number)}
-                              className={isActive ? "bg-black text-white hover:bg-black/90" : ""}
+                              variant={isActive ? undefined : "outline"}
+                              className={isActive ? "bg-black text-white hover:bg-black/90 dark:bg-primary dark:text-primary-foreground dark:hover:bg-primary/90" : ""}
                             >
                               {pageNum}
                             </Button>
@@ -662,7 +663,7 @@ export function TrainersManagement({ lang }: { lang: string }) {
                   <X className="h-4 w-4" />
                   {t("cancel")}
                 </Button>
-                <Button type="submit" className="bg-black text-white hover:bg-black/90">
+                <Button type="submit" className="bg-black text-white hover:bg-black/90 dark:bg-primary dark:text-primary-foreground dark:hover:bg-primary/90">
                   <Save className="h-4 w-4" />
                   {t("save")}
                 </Button>
@@ -682,19 +683,19 @@ export function TrainersManagement({ lang }: { lang: string }) {
             </DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-2 gap-2 py-4">
-            <Button onClick={() => handleProlong(1)} className="bg-black text-white hover:bg-black/90">
+            <Button onClick={() => handleProlong(1)} className="bg-black text-white hover:bg-black/90 dark:bg-primary dark:text-primary-foreground dark:hover:bg-primary/90">
               <Calendar className="h-4 w-4" />
               {t("prolong1Month")}
             </Button>
-            <Button onClick={() => handleProlong(3)} className="bg-black text-white hover:bg-black/90">
+            <Button onClick={() => handleProlong(3)} className="bg-black text-white hover:bg-black/90 dark:bg-primary dark:text-primary-foreground dark:hover:bg-primary/90">
               <Calendar className="h-4 w-4" />
               {t("prolong3Months")}
             </Button>
-            <Button onClick={() => handleProlong(6)} className="bg-black text-white hover:bg-black/90">
+            <Button onClick={() => handleProlong(6)} className="bg-black text-white hover:bg-black/90 dark:bg-primary dark:text-primary-foreground dark:hover:bg-primary/90">
               <Calendar className="h-4 w-4" />
               {t("prolong6Months")}
             </Button>
-            <Button onClick={() => handleProlong(12)} className="bg-black text-white hover:bg-black/90">
+            <Button onClick={() => handleProlong(12)} className="bg-black text-white hover:bg-black/90 dark:bg-primary dark:text-primary-foreground dark:hover:bg-primary/90">
               <Calendar className="h-4 w-4" />
               {t("prolong12Months")}
             </Button>
@@ -741,7 +742,7 @@ export function TrainersManagement({ lang }: { lang: string }) {
                   <X className="h-4 w-4" />
                   {t("cancel")}
                 </Button>
-                <Button type="submit" className="bg-black text-white hover:bg-black/90">
+                <Button type="submit" className="bg-black text-white hover:bg-black/90 dark:bg-primary dark:text-primary-foreground dark:hover:bg-primary/90">
                   <Save className="h-4 w-4" />
                   {t("save")}
                 </Button>

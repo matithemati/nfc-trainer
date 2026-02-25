@@ -294,7 +294,7 @@ export function LogsManagement({ lang }: { lang: string }) {
                   {/* Top row: Page info and page size selector */}
                   <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
                     <div className="text-sm text-muted-foreground">
-                      {t("page")} {pagination.page} / {pagination.totalPages} ({pagination.total} items)
+                      {t("page")} {pagination.page} / {pagination.totalPages} ({pagination.total} {t("items")})
                     </div>
                     <div className="flex items-center gap-2">
                       <Label className="text-sm whitespace-nowrap">{t("perPage") || "Per page"}:</Label>

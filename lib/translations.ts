@@ -181,6 +181,9 @@ export const translations: Record<Lang, Record<string, string>> = {
     updatedAt: "Zaktualizowano",
     allTrainers: "Wszyscy trenerzy",
     all: "Wszystko",
+    darkMode: "Tryb ciemny",
+    lightMode: "Tryb jasny",
+    items: "elementów",
   },
   en: {
     appTitle: "NFC Trainer",
@@ -360,5 +363,8 @@ export const translations: Record<Lang, Record<string, string>> = {
     allTrainers: "All Trainers",
     all: "All",
     timestamp: "Timestamp",
+    darkMode: "Dark mode",
+    lightMode: "Light mode",
+    items: "items",
   },
 };

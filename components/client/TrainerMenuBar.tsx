@@ -2,6 +2,8 @@
 
 import Image from "next/image";
 import { LanguageSwitcher } from "./LanguageSwitcher";
+import { ThemeToggle } from "./ThemeToggle";
+import { useTheme } from "@/components/providers/ThemeProvider";
 import { DropdownMenu, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Avatar } from "@/components/ui/avatar";
 import { LogOut, ChevronDown } from "lucide-react";
@@ -24,6 +26,7 @@ type Props = {
 
 export function TrainerMenuBar({ trainer, clientsCount, lang, onLogout }: Props) {
   const { t } = getMessages(lang);
+  const { theme } = useTheme();
   const firstName = trainer.name.split(" ")[0];
 
   // Check if membership is active
@@ -42,16 +45,17 @@ export function TrainerMenuBar({ trainer, clientsCount, lang, onLogout }: Props)
     <div className="flex items-center justify-between pb-3 mb-4">
       <div className="flex items-center">
         <Image
-          src="/logo.png"
+          src={theme === "dark" ? "/logo-dark.png" : "/logo-light.png"}
           alt={t("appTitle")}
-          width={120}
-          height={112}
-          className="h-auto w-16 sm:w-[120px]"
+          width={80}
+          height={75}
+          className="h-auto w-12 sm:w-20"
           priority
         />
       </div>
       
       <div className="flex items-center gap-1.5 sm:gap-3">
+        <ThemeToggle lang={lang} />
         <LanguageSwitcher lang={lang as "pl" | "en"} />
         
         <DropdownMenu

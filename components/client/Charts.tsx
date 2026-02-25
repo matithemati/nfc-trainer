@@ -4,7 +4,7 @@ import { useState, useMemo } from "react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer } from "recharts";
 import { Button } from "@/components/ui/button";
 import { getMessages } from "@/lib/i18n";
-import { Calendar } from "lucide-react";
+import { Calendar, ChevronLeft, ChevronRight } from "lucide-react";
 
 type WeightPoint = { date: string; weight: number };
 
@@ -67,8 +67,10 @@ export function WeightChart({ data, lang }: { data: WeightPoint[]; lang?: string
             variant="outline"
             size="sm"
             onClick={() => navigateMonth(-1)}
+            title={t("previous")}
           >
-            {t("previous")}
+            <ChevronLeft className="size-4 md:hidden" />
+            <span className="hidden md:inline">{t("previous")}</span>
           </Button>
           <Button
             variant="outline"
@@ -78,16 +80,19 @@ export function WeightChart({ data, lang }: { data: WeightPoint[]; lang?: string
               setCurrentMonth(today.getMonth());
               setCurrentYear(today.getFullYear());
             }}
+            title={t("today")}
           >
             <Calendar className="size-4" />
-            {t("today")}
+            <span className="hidden md:inline">{t("today")}</span>
           </Button>
           <Button
             variant="outline"
             size="sm"
             onClick={() => navigateMonth(1)}
+            title={t("next")}
           >
-            {t("next")}
+            <ChevronRight className="size-4 md:hidden" />
+            <span className="hidden md:inline">{t("next")}</span>
           </Button>
         </div>
       </div>

@@ -10,12 +10,14 @@ import { useSearchParams, useParams } from "next/navigation";
 import { Suspense } from "react";
 import Image from "next/image";
 import { LanguageSwitcher } from "@/components/client/LanguageSwitcher";
+import { useTheme } from "@/components/providers/ThemeProvider";
 
 function AdminSignInContent() {
   const params = useParams();
   const searchParams = useSearchParams();
   const lang = (params?.lang as "pl" | "en") || "en";
   const { t } = getMessages(lang);
+  const { theme } = useTheme();
   const callbackUrl = searchParams.get("callbackUrl") || `/${lang}/admin`;
   const error = searchParams.get("error");
   const [errorMessage, setErrorMessage] = useState<string | null>(error);
@@ -30,7 +32,7 @@ function AdminSignInContent() {
       {/* App Banner */}
       <div className="flex flex-col items-center space-y-4">
         <Image
-          src="/logo.png"
+          src={theme === "dark" ? "/logo-dark.png" : "/logo-light.png"}
           alt={t("appTitle")}
           width={200}
           height={186}

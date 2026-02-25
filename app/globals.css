@@ -123,4 +123,56 @@
   body {
     @apply bg-background text-foreground;
   }
+  
+  /* Custom scrollbar styling */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: oklch(0.708 0 0) transparent;
+  }
+  
+  *::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  
+  *::-webkit-scrollbar-thumb {
+    background-color: oklch(0.708 0 0);
+    border-radius: 4px;
+  }
+  
+  *::-webkit-scrollbar-thumb:hover {
+    background-color: oklch(0.556 0 0);
+  }
+  
+  .dark * {
+    scrollbar-color: oklch(0.556 0 0) transparent;
+  }
+  
+  .dark *::-webkit-scrollbar-thumb {
+    background-color: oklch(0.556 0 0);
+  }
+  
+  .dark *::-webkit-scrollbar-thumb:hover {
+    background-color: oklch(0.708 0 0);
+  }
+  
+  /* Style datetime-local input calendar icon for dark mode */
+  .dark input[type="datetime-local"]::-webkit-calendar-picker-indicator,
+  .dark input[type="date"]::-webkit-calendar-picker-indicator,
+  .dark input[type="time"]::-webkit-calendar-picker-indicator {
+    filter: invert(1) brightness(1.2);
+    opacity: 0.9;
+    cursor: pointer;
+  }
+  
+  .dark input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover,
+  .dark input[type="date"]::-webkit-calendar-picker-indicator:hover,
+  .dark input[type="time"]::-webkit-calendar-picker-indicator:hover {
+    opacity: 1;
+    filter: invert(1) brightness(1.5);
+  }
 }
