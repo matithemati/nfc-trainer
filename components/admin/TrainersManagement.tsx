@@ -543,10 +543,9 @@ export function TrainersManagement({ lang }: { lang: string }) {
                           return (
                             <Button
                               key={pageNum}
-                              variant={isActive ? "secondary" : "outline"}
+                              variant={isActive ? undefined : "outline"}
                               size="sm"
                               onClick={() => setPage(pageNum as number)}
-                              variant={isActive ? undefined : "outline"}
                               className={isActive ? "bg-black text-white hover:bg-black/90 dark:bg-primary dark:text-primary-foreground dark:hover:bg-primary/90" : ""}
                             >
                               {pageNum}
