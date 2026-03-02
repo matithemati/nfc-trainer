@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { requireAdmin, logAdminOperation, getClientIp, getUserAgent } from "@/lib/admin";
 import { ObjectId } from "mongodb";
+import * as Sentry from "@sentry/nextjs";
 
 export const runtime = "nodejs";
 
@@ -40,6 +41,7 @@ export async function GET(
     if (error instanceof Error && error.message.includes("Unauthorized")) {
       return NextResponse.json({ error: error.message }, { status: 401 });
     }
+    Sentry.captureException(error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Internal server error" },
       { status: 500 }
@@ -134,6 +136,7 @@ export async function PATCH(
     if (error instanceof Error && error.message.includes("Unauthorized")) {
       return NextResponse.json({ error: error.message }, { status: 401 });
     }
+    Sentry.captureException(error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Internal server error" },
       { status: 500 }
@@ -204,6 +207,7 @@ export async function DELETE(
     if (error instanceof Error && error.message.includes("Unauthorized")) {
       return NextResponse.json({ error: error.message }, { status: 401 });
     }
+    Sentry.captureException(error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Internal server error" },
       { status: 500 }

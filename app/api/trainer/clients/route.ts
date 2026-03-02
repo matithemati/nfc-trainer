@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { ObjectId } from "mongodb";
 import { getDb } from "@/lib/db";
 import { requireTrainer } from "@/lib/auth";
+import * as Sentry from "@sentry/nextjs";
 
 export const runtime = "nodejs";
 
@@ -22,6 +23,7 @@ export async function GET(_req: NextRequest) {
     if (error instanceof Error && error.message.includes("Unauthorized")) {
       return NextResponse.json({ error: error.message }, { status: 401 });
     }
+    Sentry.captureException(error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Internal server error" },
       { status: 500 }
@@ -67,6 +69,7 @@ export async function POST(req: NextRequest) {
     if (error instanceof Error && error.message.includes("Unauthorized")) {
       return NextResponse.json({ error: error.message }, { status: 401 });
     }
+    Sentry.captureException(error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Internal server error" },
       { status: 500 }

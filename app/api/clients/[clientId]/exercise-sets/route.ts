@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { ObjectId } from "mongodb";
 import { getDb } from "@/lib/db";
 import { getStudioClientAndTrainer } from "@/lib/auth";
+import * as Sentry from "@sentry/nextjs";
 
 export const runtime = "nodejs";
 
@@ -30,6 +31,7 @@ export async function GET(
     if (error instanceof Error && error.message.includes("not found")) {
       return NextResponse.json({ error: error.message }, { status: 404 });
     }
+    Sentry.captureException(error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Internal server error" },
       { status: 500 }
