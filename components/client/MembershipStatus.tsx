@@ -2,13 +2,14 @@
 
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, Users } from "lucide-react";
+import { Calendar, Users, Tag } from "lucide-react";
 import { getMessages } from "@/lib/i18n";
 
 type Trainer = {
   _id: string;
   name: string;
   email: string;
+  type?: "personal" | "studio";
   maxClients: number;
   expirationDate?: string | null; // ISO date string
 };
@@ -52,6 +53,13 @@ export function MembershipStatus({ trainer, clientsCount, lang }: Props) {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
+        <div className="flex items-center gap-2 text-sm">
+          <Tag className="size-4 text-muted-foreground" />
+          <span className="text-muted-foreground">{t("trainerType")}:</span>
+          <span className="font-medium">
+            {trainer.type === "studio" ? t("trainerTypeStudio") : t("trainerTypePersonal")}
+          </span>
+        </div>
         <div className="flex items-center gap-2 text-sm">
           <Users className="size-4 text-muted-foreground" />
           <span className="text-muted-foreground">{t("clients")}:</span>

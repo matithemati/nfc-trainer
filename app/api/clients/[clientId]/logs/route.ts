@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { ObjectId } from "mongodb";
-import { verifyClientOwnership } from "@/lib/auth";
+import { verifyClientOwnership, getStudioClientAndTrainer } from "@/lib/auth";
 
 export const runtime = "nodejs";
 
@@ -12,7 +12,12 @@ export async function GET(
 ) {
   try {
     const { clientId } = await Promise.resolve(params);
-    await verifyClientOwnership(clientId);
+
+    try {
+      await verifyClientOwnership(clientId);
+    } catch {
+      await getStudioClientAndTrainer(clientId);
+    }
 
     if (!ObjectId.isValid(clientId)) {
       return NextResponse.json({ error: "Invalid client ID format" }, { status: 400 });
@@ -46,7 +51,12 @@ export async function POST(
 ) {
   try {
     const { clientId } = await Promise.resolve(params);
-    await verifyClientOwnership(clientId);
+
+    try {
+      await verifyClientOwnership(clientId);
+    } catch {
+      await getStudioClientAndTrainer(clientId);
+    }
 
     const body = await req.json();
     const { date, exercises } = body as {
@@ -86,7 +96,11 @@ export async function PATCH(
 ) {
   try {
     const { clientId } = await Promise.resolve(params);
-    await verifyClientOwnership(clientId);
+    try {
+      await verifyClientOwnership(clientId);
+    } catch {
+      await getStudioClientAndTrainer(clientId);
+    }
 
     const body = await req.json();
     const { logId, date, exercises } = body as {
@@ -143,7 +157,11 @@ export async function DELETE(
 ) {
   try {
     const { clientId } = await Promise.resolve(params);
-    await verifyClientOwnership(clientId);
+    try {
+      await verifyClientOwnership(clientId);
+    } catch {
+      await getStudioClientAndTrainer(clientId);
+    }
 
     const { searchParams } = new URL(req.url);
     const logId = searchParams.get("logId");

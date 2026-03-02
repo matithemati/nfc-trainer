@@ -1,5 +1,9 @@
 # CLAUDE.md
 
+## Always do first
+- **Invoke the `frontend-design` skill** before writing any frontend code, every session, no exceptions.
+- Each task needs to have translations in both Polish and English, always include them.
+
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Commands

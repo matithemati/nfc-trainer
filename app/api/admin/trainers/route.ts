@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
     const db = await getDb();
 
     const body = await req.json();
-    const { name, email, expirationDate, pricePerMonth } = body;
+    const { name, email, expirationDate, pricePerMonth, type } = body;
 
     // Validation
     if (!name) {
@@ -86,21 +86,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Email must be unique" }, { status: 400 });
     }
 
-    // Validate expiration date
-    if (expirationDate) {
-      const expDate = new Date(expirationDate);
-      if (expDate < new Date()) {
-        return NextResponse.json(
-          { error: "Expiration date cannot be in the past" },
-          { status: 400 }
-        );
-      }
-    }
-
     const now = new Date();
     const trainer = {
       name,
       email,
+      type: type === "studio" ? "studio" : "personal",
       maxClients: 10,
       exerciseNames: [],
       expirationDate: expirationDate || null,

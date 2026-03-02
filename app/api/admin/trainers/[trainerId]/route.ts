@@ -20,15 +20,21 @@ export async function GET(
       return NextResponse.json({ error: "Invalid trainer ID" }, { status: 400 });
     }
 
+    const trainerObjId = new ObjectId(trainerId);
     const trainer = await db
       .collection("trainers")
-      .findOne({ _id: new ObjectId(trainerId) });
+      .findOne({ _id: trainerObjId });
 
     if (!trainer) {
       return NextResponse.json({ error: "Trainer not found" }, { status: 404 });
     }
 
-    return NextResponse.json(trainer);
+    const clientsCount = await db.collection("clients").countDocuments({
+      trainerId: trainerObjId,
+      deletedAt: { $exists: false },
+    });
+
+    return NextResponse.json({ ...trainer, clientsCount });
   } catch (error) {
     console.error("Error fetching trainer:", error);
     if (error instanceof Error && error.message.includes("Unauthorized")) {
@@ -65,7 +71,7 @@ export async function PATCH(
     }
 
     const body = await req.json();
-    const { name, email, expirationDate, pricePerMonth } = body;
+    const { name, email, expirationDate, pricePerMonth, type, maxClients } = body;
 
     // Validation
     if (name !== undefined && !name) {
@@ -85,19 +91,6 @@ export async function PATCH(
       }
     }
 
-    // Validate expiration date
-    if (expirationDate !== undefined) {
-      if (expirationDate) {
-        const expDate = new Date(expirationDate);
-        if (expDate < new Date()) {
-          return NextResponse.json(
-            { error: "Expiration date cannot be in the past" },
-            { status: 400 }
-          );
-        }
-      }
-    }
-
     const before = { ...trainer };
     const update: any = {
       updatedAt: new Date(),
@@ -107,6 +100,8 @@ export async function PATCH(
     if (email !== undefined) update.email = email;
     if (expirationDate !== undefined) update.expirationDate = expirationDate || null;
     if (pricePerMonth !== undefined) update.pricePerMonth = pricePerMonth || null;
+    if (type !== undefined) update.type = type === "studio" ? "studio" : "personal";
+    if (maxClients !== undefined) update.maxClients = parseInt(maxClients) || 10;
 
     await db.collection("trainers").updateOne(
       { _id: trainerIdObj },

@@ -31,7 +31,7 @@ export async function requireTrainer() {
 export async function verifyClientOwnership(clientId: string) {
   const trainer = await requireTrainer();
   const db = await getDb();
-  
+
   // Validate ObjectId format
   if (!ObjectId.isValid(clientId)) {
     throw new Error("Invalid client ID format");
@@ -51,4 +51,34 @@ export async function verifyClientOwnership(clientId: string) {
   }
 
   return { trainer, client };
+}
+
+export async function getStudioClientAndTrainer(clientId: string) {
+  if (!ObjectId.isValid(clientId)) {
+    throw new Error("Invalid client ID format");
+  }
+
+  const db = await getDb();
+
+  const client = await db
+    .collection("clients")
+    .findOne({ _id: new ObjectId(clientId) });
+
+  if (!client) {
+    throw new Error("Client not found");
+  }
+
+  const trainer = await db
+    .collection("trainers")
+    .findOne({ _id: new ObjectId(client.trainerId.toString()) });
+
+  if (!trainer) {
+    throw new Error("Trainer not found");
+  }
+
+  if (trainer.type !== "studio") {
+    throw new Error("Unauthorized: Not a studio trainer");
+  }
+
+  return { client, trainer };
 }

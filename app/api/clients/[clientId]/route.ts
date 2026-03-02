@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ObjectId } from "mongodb";
 import { getDb } from "@/lib/db";
-import { verifyClientOwnership } from "@/lib/auth";
+import { verifyClientOwnership, getStudioClientAndTrainer } from "@/lib/auth";
 
 export const runtime = "nodejs";
 
@@ -12,7 +12,13 @@ export async function GET(
 ) {
   try {
     const { clientId } = await Promise.resolve(params);
-    const { trainer, client } = await verifyClientOwnership(clientId);
+
+    let trainer, client;
+    try {
+      ({ trainer, client } = await verifyClientOwnership(clientId));
+    } catch {
+      ({ trainer, client } = await getStudioClientAndTrainer(clientId));
+    }
 
     return NextResponse.json({ client, trainer });
   } catch (error) {

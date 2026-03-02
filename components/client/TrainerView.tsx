@@ -34,8 +34,22 @@ type Trainer = {
   _id: string;
   name: string;
   email: string;
+  type?: "personal" | "studio";
   maxClients: number;
   expirationDate?: string | null; // ISO date string
+};
+
+type ExerciseSetExercise = {
+  name: string;
+  defaultSets: number;
+  defaultReps: number;
+  defaultWeight?: number;
+};
+
+type ExerciseSet = {
+  _id?: string;
+  name: string;
+  exercises: ExerciseSetExercise[];
 };
 
 type Client = {
@@ -104,6 +118,14 @@ export function TrainerView({
   } | null>(null);
   const [clientActiveTab, setClientActiveTab] = useState<"plans" | "workouts" | "history" | "progress">("workouts");
   const [clientWeights, setClientWeights] = useState<WeightPoint[]>([]);
+  const [exerciseSets, setExerciseSets] = useState<ExerciseSet[]>([]);
+  const [showAddSet, setShowAddSet] = useState(false);
+  const [newSetName, setNewSetName] = useState("");
+  const [newSetExercises, setNewSetExercises] = useState<ExerciseSetExercise[]>([]);
+  const [newSetExercise, setNewSetExercise] = useState<ExerciseSetExercise>({ name: "", defaultSets: 3, defaultReps: 10, defaultWeight: undefined });
+  const [editingSet, setEditingSet] = useState<(ExerciseSet & { _id: string }) | null>(null);
+  const [editingSetExercise, setEditingSetExercise] = useState<ExerciseSetExercise>({ name: "", defaultSets: 3, defaultReps: 10, defaultWeight: undefined });
+  const [selectedExerciseSetId, setSelectedExerciseSetId] = useState("");
 
   const load = async () => {
     try {
@@ -198,6 +220,75 @@ export function TrainerView({
   useEffect(() => {
     loadExerciseNames();
   }, []);
+
+  const loadExerciseSets = async () => {
+    try {
+      const res = await fetch("/api/trainer/exercise-sets");
+      if (res.ok) {
+        const data = await res.json();
+        setExerciseSets(data.exerciseSets || []);
+      } else if (res.status === 401) {
+        window.location.href = `/${lang}/auth/signin`;
+      }
+    } catch (err) {
+      console.error("Failed to load exercise sets:", err);
+    }
+  };
+
+  const createExerciseSet = async () => {
+    if (!newSetName.trim() || newSetExercises.length === 0) return;
+    try {
+      const res = await fetch("/api/trainer/exercise-sets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newSetName.trim(), exercises: newSetExercises }),
+      });
+      if (res.ok) {
+        await loadExerciseSets();
+        setShowAddSet(false);
+        setNewSetName("");
+        setNewSetExercises([]);
+        setNewSetExercise({ name: "", defaultSets: 3, defaultReps: 10, defaultWeight: undefined });
+      }
+    } catch (err) {
+      console.error("Failed to create exercise set:", err);
+    }
+  };
+
+  const saveEditedSet = async () => {
+    if (!editingSet) return;
+    try {
+      const res = await fetch("/api/trainer/exercise-sets", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ setId: editingSet._id, name: editingSet.name, exercises: editingSet.exercises }),
+      });
+      if (res.ok) {
+        await loadExerciseSets();
+        setEditingSet(null);
+      }
+    } catch (err) {
+      console.error("Failed to update exercise set:", err);
+    }
+  };
+
+  const deleteExerciseSet = async (setId: string) => {
+    if (!confirm("Delete this exercise set?")) return;
+    try {
+      const res = await fetch(`/api/trainer/exercise-sets?setId=${setId}`, { method: "DELETE" });
+      if (res.ok) {
+        setExerciseSets((prev) => prev.filter((s) => s._id !== setId));
+      }
+    } catch (err) {
+      console.error("Failed to delete exercise set:", err);
+    }
+  };
+
+  useEffect(() => {
+    if (trainer?.type === "studio") {
+      loadExerciseSets();
+    }
+  }, [trainer]);
 
   const selectClient = async (c: Client) => {
     setSelectedClient(c);
@@ -369,6 +460,7 @@ export function TrainerView({
         setShowAddWorkout(false);
         setWorkoutExercises([]);
         setNewExercise({ name: "", sets: 3, reps: 10 });
+        setSelectedExerciseSetId("");
       }
     } catch (err) {
       console.error("Failed to add workout:", err);
@@ -570,6 +662,151 @@ export function TrainerView({
         </Card>
       </div>
 
+      {trainer.type === "studio" && (
+        <Card className="w-full">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle>{t("exerciseSets")}</CardTitle>
+              {!showAddSet && !editingSet && (
+                <Button size="sm" onClick={() => setShowAddSet(true)}>
+                  <Plus className="size-4" />
+                  {t("addSet")}
+                </Button>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {showAddSet && (
+              <div className="space-y-3 p-3 border rounded-lg">
+                <div>
+                  <Label className="text-sm font-semibold">{t("newExerciseSet")}</Label>
+                  <Input
+                    value={newSetName}
+                    onChange={(e) => setNewSetName(e.target.value)}
+                    placeholder={t("exerciseSetNamePlaceholder")}
+                    className="mt-1"
+                  />
+                </div>
+                {newSetExercises.length > 0 && (
+                  <div className="space-y-1 max-h-[150px] overflow-y-auto">
+                    {newSetExercises.map((ex, idx) => (
+                      <div key={idx} className="flex items-center justify-between p-2 border rounded text-sm">
+                        <span>{ex.name} — {ex.defaultSets}×{ex.defaultReps}{ex.defaultWeight ? ` @ ${ex.defaultWeight}${t("weightUnit")}` : ""}</span>
+                        <Button variant="ghost" size="sm" onClick={() => setNewSetExercises((prev) => prev.filter((_, i) => i !== idx))}>
+                          <Trash2 className="size-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="border-t pt-2 space-y-2">
+                  <Label className="text-xs text-muted-foreground">{t("addExerciseToSet")}</Label>
+                  <select
+                    value={newSetExercise.name}
+                    onChange={(e) => setNewSetExercise((ex) => ({ ...ex, name: e.target.value }))}
+                    className="w-full px-3 py-2 border rounded-md bg-background"
+                  >
+                    <option value="">{t("selectExercise")}</option>
+                    {exerciseNames.map((name) => (
+                      <option key={name} value={name}>{name}</option>
+                    ))}
+                  </select>
+                  <div className="grid grid-cols-3 gap-2">
+                    <Input type="number" value={newSetExercise.defaultSets} onChange={(e) => setNewSetExercise((ex) => ({ ...ex, defaultSets: Number(e.target.value) }))} placeholder={t("sets")} />
+                    <Input type="number" value={newSetExercise.defaultReps} onChange={(e) => setNewSetExercise((ex) => ({ ...ex, defaultReps: Number(e.target.value) }))} placeholder={t("reps")} />
+                    <Input type="number" step="0.1" value={newSetExercise.defaultWeight || ""} onChange={(e) => setNewSetExercise((ex) => ({ ...ex, defaultWeight: e.target.value ? Number(e.target.value) : undefined }))} placeholder={`${t("weightUnit")} (${t("optional")})`} />
+                  </div>
+                  <Button size="sm" variant="outline" className="w-full" disabled={!newSetExercise.name.trim()} onClick={() => {
+                    if (!newSetExercise.name.trim()) return;
+                    setNewSetExercises((prev) => [...prev, { ...newSetExercise }]);
+                    setNewSetExercise({ name: "", defaultSets: 3, defaultReps: 10, defaultWeight: undefined });
+                  }}>
+                    <Plus className="size-4" /> {t("addExercise")}
+                  </Button>
+                </div>
+                <div className="flex gap-2">
+                  <Button size="sm" className="flex-1" disabled={!newSetName.trim() || newSetExercises.length === 0} onClick={createExerciseSet}>
+                    <Save className="size-4" /> {t("saveSet")}
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => { setShowAddSet(false); setNewSetName(""); setNewSetExercises([]); setNewSetExercise({ name: "", defaultSets: 3, defaultReps: 10, defaultWeight: undefined }); }}>
+                    <X className="size-4" /> {t("cancel")}
+                  </Button>
+                </div>
+              </div>
+            )}
+            {!showAddSet && exerciseSets.length === 0 && (
+              <p className="text-muted-foreground text-sm">{t("noExerciseSets")}</p>
+            )}
+            <div className="space-y-2 max-h-[220px] overflow-y-auto">
+              {exerciseSets.map((set) => (
+                <div key={set._id} className="border rounded-lg">
+                  {editingSet?._id === set._id && editingSet ? (
+                    <div className="p-3 space-y-2">
+                      <Input value={editingSet.name} onChange={(e) => { const s = editingSet; if (s) setEditingSet({ ...s, name: e.target.value }); }} />
+                      <div className="space-y-1 max-h-[150px] overflow-y-auto">
+                        {editingSet.exercises.map((ex, idx) => (
+                          <div key={idx} className="flex items-center justify-between p-1 border rounded text-sm">
+                            <span>{ex.name} — {ex.defaultSets}×{ex.defaultReps}{ex.defaultWeight ? ` @ ${ex.defaultWeight}${t("weightUnit")}` : ""}</span>
+                            <Button variant="ghost" size="sm" onClick={() => { const s = editingSet; if (s) setEditingSet({ ...s, exercises: s.exercises.filter((_, i) => i !== idx) }); }}>
+                              <Trash2 className="size-3" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="border-t pt-2 space-y-2">
+                        <Label className="text-xs text-muted-foreground">{t("addExercise")}</Label>
+                        <select
+                          value={editingSetExercise.name}
+                          onChange={(e) => setEditingSetExercise((ex) => ({ ...ex, name: e.target.value }))}
+                          className="w-full px-3 py-2 border rounded-md bg-background"
+                        >
+                          <option value="">{t("selectExercise")}</option>
+                          {exerciseNames.map((name) => (
+                            <option key={name} value={name}>{name}</option>
+                          ))}
+                        </select>
+                        <div className="grid grid-cols-3 gap-2">
+                          <Input type="number" value={editingSetExercise.defaultSets} onChange={(e) => setEditingSetExercise((ex) => ({ ...ex, defaultSets: Number(e.target.value) }))} placeholder={t("sets")} />
+                          <Input type="number" value={editingSetExercise.defaultReps} onChange={(e) => setEditingSetExercise((ex) => ({ ...ex, defaultReps: Number(e.target.value) }))} placeholder={t("reps")} />
+                          <Input type="number" step="0.1" value={editingSetExercise.defaultWeight || ""} onChange={(e) => setEditingSetExercise((ex) => ({ ...ex, defaultWeight: e.target.value ? Number(e.target.value) : undefined }))} placeholder={t("weightUnit")} />
+                        </div>
+                        <Button size="sm" variant="outline" className="w-full" disabled={!editingSetExercise.name.trim()} onClick={() => {
+                          if (!editingSetExercise.name.trim() || !editingSet) return;
+                          const s = editingSet;
+                          setEditingSet({ ...s, exercises: [...s.exercises, { ...editingSetExercise }] });
+                          setEditingSetExercise({ name: "", defaultSets: 3, defaultReps: 10, defaultWeight: undefined });
+                        }}>
+                          <Plus className="size-4" /> {t("addExercise")}
+                        </Button>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button size="sm" className="flex-1" onClick={saveEditedSet}><Save className="size-4" /> {t("save")}</Button>
+                        <Button size="sm" variant="outline" onClick={() => setEditingSet(null)}><X className="size-4" /> {t("cancel")}</Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between p-3">
+                      <div>
+                        <div className="font-medium text-sm">{set.name}</div>
+                        <div className="text-xs text-muted-foreground">{set.exercises.length} {set.exercises.length !== 1 ? t("exercises") : t("exercise")}</div>
+                      </div>
+                      <div className="flex gap-1">
+                        <Button variant="ghost" size="sm" onClick={() => { setEditingSet(set as ExerciseSet & { _id: string }); setEditingSetExercise({ name: "", defaultSets: 3, defaultReps: 10, defaultWeight: undefined }); }}>
+                          <Pencil className="size-4" />
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => deleteExerciseSet(set._id!)}>
+                          <Trash2 className="size-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle>{t("clients")} ({clients.length})</CardTitle>
@@ -746,6 +983,34 @@ export function TrainerView({
                                         className="mt-1"
                                       />
                                     </div>
+                                    {trainer.type === "studio" && exerciseSets.length > 0 && (
+                                      <div>
+                                        <Label className="text-sm">Load from exercise set</Label>
+                                        <select
+                                          value={selectedExerciseSetId}
+                                          onChange={(e) => {
+                                            setSelectedExerciseSetId(e.target.value);
+                                            if (e.target.value) {
+                                              const set = exerciseSets.find((s) => s._id === e.target.value);
+                                              if (set) {
+                                                setWorkoutExercises(set.exercises.map((ex) => ({
+                                                  name: ex.name,
+                                                  sets: ex.defaultSets,
+                                                  reps: ex.defaultReps,
+                                                  weight: ex.defaultWeight,
+                                                })));
+                                              }
+                                            }
+                                          }}
+                                          className="w-full mt-1 px-3 py-2 border rounded-md"
+                                        >
+                                          <option value="">— select set to pre-fill —</option>
+                                          {exerciseSets.map((s) => (
+                                            <option key={s._id} value={s._id}>{s.name}</option>
+                                          ))}
+                                        </select>
+                                      </div>
+                                    )}
                                     
                                     {workoutExercises.length > 0 && (
                                       <div className="space-y-2">
@@ -852,12 +1117,13 @@ export function TrainerView({
                                         <Save className="size-4" />
                                         {t("saveWorkout")}
                                       </Button>
-                                      <Button 
+                                      <Button
                                         variant="outline"
                                         onClick={() => {
                                           setShowAddWorkout(false);
                                           setWorkoutExercises([]);
                                           setNewExercise({ name: "", sets: 3, reps: 10, weight: undefined });
+                                          setSelectedExerciseSetId("");
                                         }}
                                       >
                                         <X className="size-4" />

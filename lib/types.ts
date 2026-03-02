@@ -5,6 +5,7 @@ export type Trainer = {
     _id: ObjectId | string;
     name: string;
     email: string;
+    type?: "personal" | "studio";
     maxClients: number;
     expirationDate?: string | null; // ISO date string
     pricePerMonth?: number;
@@ -39,7 +40,21 @@ export type Trainer = {
       name: string;
       sets: number;
       reps: number;
+      weight?: number;
     }[];
+  };
+
+  export type ExerciseSet = {
+    _id?: ObjectId | string;
+    trainerId: ObjectId | string;
+    name: string;
+    exercises: {
+      name: string;
+      defaultSets: number;
+      defaultReps: number;
+      defaultWeight?: number;
+    }[];
+    createdAt?: Date;
   };
   
   export type WeightLog = {

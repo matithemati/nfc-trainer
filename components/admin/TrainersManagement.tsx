@@ -29,6 +29,8 @@ type Trainer = {
   _id: string;
   name: string;
   email: string;
+  type?: "personal" | "studio";
+  maxClients?: number;
   expirationDate?: string | null;
   pricePerMonth?: number | null;
   notes?: Array<{
@@ -59,11 +61,14 @@ export function TrainersManagement({ lang }: { lang: string }) {
   const [search, setSearch] = useState("");
   const [showDeleted, setShowDeleted] = useState(false);
   const [editingTrainer, setEditingTrainer] = useState<Trainer | null>(null);
+  const [createType, setCreateType] = useState<"personal" | "studio">("personal");
+  const [editType, setEditType] = useState<"personal" | "studio">("personal");
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isNoteDialogOpen, setIsNoteDialogOpen] = useState(false);
   const [isProlongDialogOpen, setIsProlongDialogOpen] = useState(false);
   const [selectedTrainer, setSelectedTrainer] = useState<Trainer | null>(null);
+  const [editingClientCount, setEditingClientCount] = useState<number | null>(null);
 
   const fetchTrainers = async () => {
     setLoading(true);
@@ -94,27 +99,22 @@ export function TrainersManagement({ lang }: { lang: string }) {
     setPage(1);
   }, [pageSize]);
 
-  // Helper to convert datetime-local to ISO string
-  const convertLocalDateTimeToISO = (localDateTime: string): string => {
-    if (!localDateTime) return "";
-    // datetime-local returns "YYYY-MM-DDTHH:mm" in local time
-    // Create a date object from it (this interprets it as local time)
-    const localDate = new Date(localDateTime);
-    // Return ISO string
-    return localDate.toISOString();
+  // Helper to convert date input (YYYY-MM-DD) to ISO string at end of day
+  const convertLocalDateTimeToISO = (dateString: string): string => {
+    if (!dateString) return "";
+    const [year, month, day] = dateString.split("-").map(Number);
+    const eod = new Date(year, month - 1, day, 23, 59, 59, 999);
+    return eod.toISOString();
   };
 
-  // Helper to convert ISO string to datetime-local format
+  // Helper to convert ISO string to date input format (YYYY-MM-DD)
   const convertISOToLocalDateTime = (isoString: string): string => {
     if (!isoString) return "";
     const date = new Date(isoString);
-    // Get local date components
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, "0");
     const day = String(date.getDate()).padStart(2, "0");
-    const hours = String(date.getHours()).padStart(2, "0");
-    const minutes = String(date.getMinutes()).padStart(2, "0");
-    return `${year}-${month}-${day}T${hours}:${minutes}`;
+    return `${year}-${month}-${day}`;
   };
 
   const handleCreate = async (formData: FormData) => {
@@ -130,6 +130,7 @@ export function TrainersManagement({ lang }: { lang: string }) {
         body: JSON.stringify({
           name,
           email,
+          type: createType,
           expirationDate: expirationDate ? convertLocalDateTimeToISO(expirationDate) : null,
           pricePerMonth: pricePerMonth ? parseFloat(pricePerMonth) : null,
         }),
@@ -137,6 +138,7 @@ export function TrainersManagement({ lang }: { lang: string }) {
 
       if (res.ok) {
         setIsCreateDialogOpen(false);
+        setCreateType("personal");
         fetchTrainers();
       } else {
         const error = await res.json();
@@ -155,6 +157,7 @@ export function TrainersManagement({ lang }: { lang: string }) {
     const email = formData.get("email") as string;
     const expirationDate = formData.get("expirationDate") as string;
     const pricePerMonth = formData.get("pricePerMonth") as string;
+    const maxClients = formData.get("maxClients") as string;
 
     try {
       const res = await fetch(`/api/admin/trainers/${editingTrainer._id}`, {
@@ -163,8 +166,10 @@ export function TrainersManagement({ lang }: { lang: string }) {
         body: JSON.stringify({
           name,
           email,
+          type: editType,
           expirationDate: expirationDate ? convertLocalDateTimeToISO(expirationDate) : null,
           pricePerMonth: pricePerMonth ? parseFloat(pricePerMonth) : null,
+          maxClients: maxClients ? parseInt(maxClients) : undefined,
         }),
       });
 
@@ -313,8 +318,20 @@ export function TrainersManagement({ lang }: { lang: string }) {
                   <Input id="email" name="email" type="email" required />
                 </div>
                 <div>
+                  <Label>{t("trainerType")}</Label>
+                  <Select value={createType} onValueChange={(v) => setCreateType(v as "personal" | "studio")}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="personal">{t("trainerTypePersonal")}</SelectItem>
+                      <SelectItem value="studio">{t("trainerTypeStudio")}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
                   <Label htmlFor="expirationDate">{t("membershipExpiration")}</Label>
-                  <Input id="expirationDate" name="expirationDate" type="datetime-local" step="1" />
+                  <Input id="expirationDate" name="expirationDate" type="date" />
                 </div>
                 <div>
                   <Label htmlFor="pricePerMonth">{t("pricePerMonth")}</Label>
@@ -350,6 +367,7 @@ export function TrainersManagement({ lang }: { lang: string }) {
                   <TableRow>
                     <TableHead>{t("trainerName")}</TableHead>
                     <TableHead>{t("trainerEmail")}</TableHead>
+                    <TableHead>{t("trainerType")}</TableHead>
                     <TableHead>{t("membershipExpiration")}</TableHead>
                     <TableHead>{t("pricePerMonth")}</TableHead>
                     <TableHead>{t("actions")}</TableHead>
@@ -360,6 +378,7 @@ export function TrainersManagement({ lang }: { lang: string }) {
                     <TableRow key={trainer._id}>
                       <TableCell>{trainer.name}</TableCell>
                       <TableCell>{trainer.email}</TableCell>
+                      <TableCell>{trainer.type === "studio" ? t("trainerTypeStudio") : t("trainerTypePersonal")}</TableCell>
                       <TableCell>
                         {trainer.expirationDate
                           ? new Date(trainer.expirationDate).toLocaleDateString()
@@ -378,7 +397,13 @@ export function TrainersManagement({ lang }: { lang: string }) {
                                   variant="ghost"
                                   onClick={() => {
                                     setEditingTrainer(trainer);
+                                    setEditType(trainer.type === "studio" ? "studio" : "personal");
+                                    setEditingClientCount(null);
                                     setIsEditDialogOpen(true);
+                                    fetch(`/api/admin/trainers/${trainer._id}`)
+                                      .then((r) => r.json())
+                                      .then((d) => setEditingClientCount(d.clientsCount ?? 0))
+                                      .catch(() => setEditingClientCount(0));
                                   }}
                                 >
                                   <Pencil className="h-4 w-4" />
@@ -611,12 +636,23 @@ export function TrainersManagement({ lang }: { lang: string }) {
                   />
                 </div>
                 <div>
+                  <Label>{t("trainerType")}</Label>
+                  <Select value={editType} onValueChange={(v) => setEditType(v as "personal" | "studio")}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="personal">{t("trainerTypePersonal")}</SelectItem>
+                      <SelectItem value="studio">{t("trainerTypeStudio")}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
                   <Label htmlFor="edit-expirationDate">{t("membershipExpiration")}</Label>
                   <Input
                     id="edit-expirationDate"
                     name="expirationDate"
-                    type="datetime-local"
-                    step="1"
+                    type="date"
                     defaultValue={
                       editingTrainer.expirationDate
                         ? convertISOToLocalDateTime(editingTrainer.expirationDate)
@@ -633,6 +669,29 @@ export function TrainersManagement({ lang }: { lang: string }) {
                     step="0.01"
                     defaultValue={editingTrainer.pricePerMonth || ""}
                   />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label htmlFor="edit-currentClients">{t("currentClients")}</Label>
+                    <Input
+                      id="edit-currentClients"
+                      type="number"
+                      value={editingClientCount ?? "…"}
+                      disabled
+                      className="mt-1"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="edit-maxClients">{t("maxClients")}</Label>
+                    <Input
+                      id="edit-maxClients"
+                      name="maxClients"
+                      type="number"
+                      min="1"
+                      defaultValue={editingTrainer.maxClients ?? 10}
+                      className="mt-1"
+                    />
+                  </div>
                 </div>
                 {editingTrainer.notes && editingTrainer.notes.length > 0 && (
                   <div>
@@ -678,7 +737,16 @@ export function TrainersManagement({ lang }: { lang: string }) {
           <DialogHeader>
             <DialogTitle>{t("prolongMembership")}</DialogTitle>
             <DialogDescription>
-              {selectedTrainer && t("prolongMembership")}
+              {selectedTrainer && (
+                <span>
+                  {t("currentExpirationDate")}:{" "}
+                  <strong>
+                    {selectedTrainer.expirationDate
+                      ? new Date(selectedTrainer.expirationDate).toLocaleDateString()
+                      : t("noExpirationDate")}
+                  </strong>
+                </span>
+              )}
             </DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-2 gap-2 py-4">
