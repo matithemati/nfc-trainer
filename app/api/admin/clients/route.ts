@@ -131,6 +131,7 @@ export async function POST(req: NextRequest) {
       .collection("clients")
       .findOne({ _id: clientId });
 
+    Sentry.logger.info(`Client created (admin): ${name}, trainerId: ${trainerId}`);
     return NextResponse.json(createdClient, { status: 201 });
   } catch (error) {
     console.error("Error creating client:", error);

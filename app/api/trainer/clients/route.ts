@@ -45,6 +45,7 @@ export async function POST(req: NextRequest) {
       .countDocuments({ trainerId: new ObjectId(trainer._id) });
 
     if (count >= trainer.maxClients) {
+      Sentry.logger.warn(`Max clients limit reached for trainer ${trainer._id} (limit: ${trainer.maxClients})`);
       return NextResponse.json(
         { error: "Max clients reached" },
         { status: 400 }
@@ -63,6 +64,7 @@ export async function POST(req: NextRequest) {
 
     await db.collection("clients").insertOne(client);
 
+    Sentry.logger.info(`Client created by trainer ${trainer._id}: ${name}`);
     return NextResponse.json(client, { status: 201 });
   } catch (error) {
     console.error("Error creating client:", error);

@@ -85,6 +85,7 @@ export async function POST(
       }
     );
 
+    Sentry.logger.info(`Trainer membership prolonged: ${trainerId}, +${months} months, new expiration: ${newExpirationDate.toISOString()}`);
     return NextResponse.json(after);
   } catch (error) {
     console.error("Error prolonging membership:", error);

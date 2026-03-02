@@ -124,6 +124,7 @@ export async function POST(req: NextRequest) {
       .collection("trainers")
       .findOne({ _id: insertedId });
 
+    Sentry.logger.info(`Trainer created: ${name} (${email}), type: ${trainer.type}`);
     return NextResponse.json(createdTrainer, { status: 201 });
   } catch (error) {
     console.error("Error creating trainer:", error);

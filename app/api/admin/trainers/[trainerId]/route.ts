@@ -130,6 +130,7 @@ export async function PATCH(
       }
     );
 
+    Sentry.logger.info(`Trainer updated: ${trainerId}`);
     return NextResponse.json(after);
   } catch (error) {
     console.error("Error updating trainer:", error);
@@ -201,6 +202,7 @@ export async function DELETE(
       }
     );
 
+    Sentry.logger.info(`Trainer deleted: ${trainerId} (${before.name})`);
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Error deleting trainer:", error);

@@ -191,6 +191,7 @@ export async function DELETE(
       }
     );
 
+    Sentry.logger.info(`Client deleted: ${clientId} (${before.name})`);
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Error deleting client:", error);
