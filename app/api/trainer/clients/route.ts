@@ -17,6 +17,9 @@ export async function GET(_req: NextRequest) {
       .find({ trainerId: new ObjectId(trainer._id) })
       .toArray();
 
+    const span = Sentry.getActiveSpan();
+    if (span) span.setAttribute("clients.count", clients.length);
+
     return NextResponse.json({ trainer, clients });
   } catch (error) {
     console.error("Error fetching trainer:", error);

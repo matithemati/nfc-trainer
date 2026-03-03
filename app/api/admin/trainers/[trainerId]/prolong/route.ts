@@ -54,6 +54,9 @@ export async function POST(
     const newExpirationDate = new Date(baseDate);
     newExpirationDate.setMonth(newExpirationDate.getMonth() + months);
 
+    const span = Sentry.getActiveSpan();
+    if (span) span.setAttribute("prolong.months", months);
+
     await db.collection("trainers").updateOne(
       { _id: trainerIdObj },
       {

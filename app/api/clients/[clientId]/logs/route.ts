@@ -72,6 +72,10 @@ export async function POST(
 
     const db = await getDb();
     const log = { clientId: new ObjectId(clientId), date, exercises };
+
+    const span = Sentry.getActiveSpan();
+    if (span) span.setAttribute("exercises.count", exercises.length);
+
     const result = await db.collection("workouts").insertOne(log);
     const inserted = await db
       .collection("workouts")

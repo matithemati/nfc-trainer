@@ -15,10 +15,18 @@ export async function GET(
     const { clientId } = await Promise.resolve(params);
 
     let trainer, client;
+    let authMethod: "trainer" | "studio" = "trainer";
     try {
       ({ trainer, client } = await verifyClientOwnership(clientId));
     } catch {
       ({ trainer, client } = await getStudioClientAndTrainer(clientId));
+      authMethod = "studio";
+    }
+
+    const span = Sentry.getActiveSpan();
+    if (span) {
+      span.setAttribute("auth.method", authMethod);
+      span.setAttribute("trainer.type", (trainer as any).type ?? "personal");
     }
 
     return NextResponse.json({ client, trainer });
