@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, Legend } from "recharts";
 import { Button } from "@/components/ui/button";
 import { getMessages } from "@/lib/i18n";
@@ -36,39 +36,30 @@ export function WeightChart({ data, lang }: { data: WeightPoint[]; lang?: string
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
 
-  const filteredData = useMemo(() => {
-    return data
-      .filter((point) => {
-        const pointDate = new Date(point.date);
-        return (
-          pointDate.getMonth() === currentMonth &&
-          pointDate.getFullYear() === currentYear
-        );
-      })
-      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-      .map((point) => ({
-        ...point,
-        date: new Date(point.date).toLocaleDateString(currentLang === "pl" ? "pl-PL" : "en-US", {
-          month: "short",
-          day: "numeric",
-        }),
-      }));
-  }, [data, currentMonth, currentYear]);
+  const locale = currentLang === "pl" ? "pl-PL" : "en-US";
 
-  const minWeight = useMemo(() => {
-    if (filteredData.length === 0) return 0;
-    return Math.min(...filteredData.map((d) => d.weight));
-  }, [filteredData]);
+  const filteredData = data
+    .filter((point) => {
+      const pointDate = new Date(point.date);
+      return (
+        pointDate.getMonth() === currentMonth &&
+        pointDate.getFullYear() === currentYear
+      );
+    })
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+    .map((point) => ({
+      ...point,
+      date: new Date(point.date).toLocaleDateString(locale, {
+        month: "short",
+        day: "numeric",
+      }),
+    }));
 
-  const maxWeight = useMemo(() => {
-    if (filteredData.length === 0) return 100;
-    return Math.max(...filteredData.map((d) => d.weight));
-  }, [filteredData]);
-
-  const yAxisDomain = useMemo(() => {
-    const padding = (maxWeight - minWeight) * 0.1 || 1;
-    return [Math.max(0, minWeight - padding), maxWeight + padding];
-  }, [minWeight, maxWeight]);
+  const weights = filteredData.map((d) => d.weight);
+  const minWeight = weights.length === 0 ? 0 : Math.min(...weights);
+  const maxWeight = weights.length === 0 ? 100 : Math.max(...weights);
+  const padding = (maxWeight - minWeight) * 0.1 || 1;
+  const yAxisDomain = [Math.max(0, minWeight - padding), maxWeight + padding];
 
   const navigateMonth = (direction: number) => {
     const newDate = new Date(currentYear, currentMonth + direction, 1);
@@ -76,10 +67,10 @@ export function WeightChart({ data, lang }: { data: WeightPoint[]; lang?: string
     setCurrentYear(newDate.getFullYear());
   };
 
-  const monthName = new Date(currentYear, currentMonth, 1).toLocaleDateString(
-    currentLang === "pl" ? "pl-PL" : "en-US",
-    { month: "long", year: "numeric" }
-  );
+  const monthName = new Date(currentYear, currentMonth, 1).toLocaleDateString(locale, {
+    month: "long",
+    year: "numeric",
+  });
 
   return (
     <div className="space-y-4">
@@ -167,27 +158,25 @@ export function DimensionsChart({ data, lang }: { data: DimensionEntry[]; lang?:
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
 
-  const filteredData = useMemo(() => {
-    return data
-      .filter((entry) => {
-        const d = new Date(entry.date);
-        return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
-      })
-      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-      .map((entry) => ({
-        ...entry,
-        date: new Date(entry.date).toLocaleDateString(currentLang === "pl" ? "pl-PL" : "en-US", {
-          month: "short",
-          day: "numeric",
-        }),
-      }));
-  }, [data, currentMonth, currentYear, currentLang]);
+  const locale = currentLang === "pl" ? "pl-PL" : "en-US";
 
-  const activeKeys = useMemo(() => {
-    return DIMENSION_KEYS.filter((key) =>
-      filteredData.some((entry) => entry[key] !== undefined && entry[key] !== null)
-    );
-  }, [filteredData]);
+  const filteredData = data
+    .filter((entry) => {
+      const d = new Date(entry.date);
+      return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+    })
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+    .map((entry) => ({
+      ...entry,
+      date: new Date(entry.date).toLocaleDateString(locale, {
+        month: "short",
+        day: "numeric",
+      }),
+    }));
+
+  const activeKeys = DIMENSION_KEYS.filter((key) =>
+    filteredData.some((entry) => entry[key] !== undefined && entry[key] !== null)
+  );
 
   const navigateMonth = (direction: number) => {
     const newDate = new Date(currentYear, currentMonth + direction, 1);
@@ -195,12 +184,12 @@ export function DimensionsChart({ data, lang }: { data: DimensionEntry[]; lang?:
     setCurrentYear(newDate.getFullYear());
   };
 
-  const monthName = new Date(currentYear, currentMonth, 1).toLocaleDateString(
-    currentLang === "pl" ? "pl-PL" : "en-US",
-    { month: "long", year: "numeric" }
-  );
+  const monthName = new Date(currentYear, currentMonth, 1).toLocaleDateString(locale, {
+    month: "long",
+    year: "numeric",
+  });
 
-  const dimensionLabel = (key: string) => t(`dimension${key.charAt(0).toUpperCase() + key.slice(1)}` as any);
+  const dimensionLabel = (key: string) => t(`dimension${key.charAt(0).toUpperCase() + key.slice(1)}`);
 
   return (
     <div className="space-y-4">
@@ -247,7 +236,7 @@ export function DimensionsChart({ data, lang }: { data: DimensionEntry[]; lang?:
               />
               <Tooltip
                 contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "6px" }}
-                formatter={(value: number, name: string) => [`${value} cm`, dimensionLabel(name)]}
+                formatter={(value: number | undefined, name: string | undefined) => [`${value ?? ""} cm`, name ? dimensionLabel(name) : ""]}
               />
               <Legend formatter={(value) => dimensionLabel(value)} />
               {activeKeys.map((key) => (
