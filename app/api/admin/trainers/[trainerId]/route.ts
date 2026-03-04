@@ -102,7 +102,7 @@ export async function PATCH(
     if (email !== undefined) update.email = email;
     if (expirationDate !== undefined) update.expirationDate = expirationDate || null;
     if (pricePerMonth !== undefined) update.pricePerMonth = pricePerMonth || null;
-    if (type !== undefined) update.type = type === "studio" ? "studio" : "personal";
+    if (type !== undefined) update.type = type === "personal" ? "personal" : "studio";
     if (maxClients !== undefined) update.maxClients = parseInt(maxClients) || 10;
 
     await db.collection("trainers").updateOne(

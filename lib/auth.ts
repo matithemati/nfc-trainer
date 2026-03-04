@@ -76,8 +76,8 @@ export async function getStudioClientAndTrainer(clientId: string) {
     throw new Error("Trainer not found");
   }
 
-  if (trainer.type !== "studio") {
-    throw new Error("Unauthorized: Not a studio trainer");
+  if (trainer.type !== "personal") {
+    throw new Error("Unauthorized: Not a personal trainer");
   }
 
   return { client, trainer };

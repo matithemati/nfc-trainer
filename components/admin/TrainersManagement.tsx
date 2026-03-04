@@ -61,8 +61,8 @@ export function TrainersManagement({ lang }: { lang: string }) {
   const [search, setSearch] = useState("");
   const [showDeleted, setShowDeleted] = useState(false);
   const [editingTrainer, setEditingTrainer] = useState<Trainer | null>(null);
-  const [createType, setCreateType] = useState<"personal" | "studio">("personal");
-  const [editType, setEditType] = useState<"personal" | "studio">("personal");
+  const [createType, setCreateType] = useState<"personal" | "studio">("studio");
+  const [editType, setEditType] = useState<"personal" | "studio">("studio");
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isNoteDialogOpen, setIsNoteDialogOpen] = useState(false);
@@ -138,7 +138,7 @@ export function TrainersManagement({ lang }: { lang: string }) {
 
       if (res.ok) {
         setIsCreateDialogOpen(false);
-        setCreateType("personal");
+        setCreateType("studio");
         fetchTrainers();
       } else {
         const error = await res.json();
@@ -378,7 +378,7 @@ export function TrainersManagement({ lang }: { lang: string }) {
                     <TableRow key={trainer._id}>
                       <TableCell>{trainer.name}</TableCell>
                       <TableCell>{trainer.email}</TableCell>
-                      <TableCell>{trainer.type === "studio" ? t("trainerTypeStudio") : t("trainerTypePersonal")}</TableCell>
+                      <TableCell>{trainer.type === "personal" ? t("trainerTypePersonal") : t("trainerTypeStudio")}</TableCell>
                       <TableCell>
                         {trainer.expirationDate
                           ? new Date(trainer.expirationDate).toLocaleDateString()
@@ -397,7 +397,7 @@ export function TrainersManagement({ lang }: { lang: string }) {
                                   variant="ghost"
                                   onClick={() => {
                                     setEditingTrainer(trainer);
-                                    setEditType(trainer.type === "studio" ? "studio" : "personal");
+                                    setEditType(trainer.type === "personal" ? "personal" : "studio");
                                     setEditingClientCount(null);
                                     setIsEditDialogOpen(true);
                                     fetch(`/api/admin/trainers/${trainer._id}`)

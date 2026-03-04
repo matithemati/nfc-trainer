@@ -1,12 +1,35 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer } from "recharts";
+import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, Legend } from "recharts";
 import { Button } from "@/components/ui/button";
 import { getMessages } from "@/lib/i18n";
 import { Calendar, ChevronLeft, ChevronRight } from "lucide-react";
 
 type WeightPoint = { date: string; weight: number };
+
+type DimensionEntry = {
+  date: string;
+  neck?: number;
+  chest?: number;
+  waist?: number;
+  hips?: number;
+  bicep?: number;
+  thigh?: number;
+  calf?: number;
+};
+
+const DIMENSION_COLORS: Record<string, string> = {
+  neck:  "#ef4444",
+  chest: "#f97316",
+  waist: "#eab308",
+  hips:  "#22c55e",
+  bicep: "#06b6d4",
+  thigh: "#8b5cf6",
+  calf:  "#ec4899",
+};
+
+const DIMENSION_KEYS = ["neck", "chest", "waist", "hips", "bicep", "thigh", "calf"] as const;
 
 export function WeightChart({ data, lang }: { data: WeightPoint[]; lang?: string }) {
   const { t, lang: currentLang } = getMessages(lang);
@@ -131,6 +154,114 @@ export function WeightChart({ data, lang }: { data: WeightPoint[]; lang?: string
                 dot={{ r: 4, fill: "#22c55e" }}
                 activeDot={{ r: 6 }}
               />
+            </LineChart>
+          </ResponsiveContainer>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export function DimensionsChart({ data, lang }: { data: DimensionEntry[]; lang?: string }) {
+  const { t, lang: currentLang } = getMessages(lang);
+  const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
+  const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
+
+  const filteredData = useMemo(() => {
+    return data
+      .filter((entry) => {
+        const d = new Date(entry.date);
+        return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+      })
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+      .map((entry) => ({
+        ...entry,
+        date: new Date(entry.date).toLocaleDateString(currentLang === "pl" ? "pl-PL" : "en-US", {
+          month: "short",
+          day: "numeric",
+        }),
+      }));
+  }, [data, currentMonth, currentYear, currentLang]);
+
+  const activeKeys = useMemo(() => {
+    return DIMENSION_KEYS.filter((key) =>
+      filteredData.some((entry) => entry[key] !== undefined && entry[key] !== null)
+    );
+  }, [filteredData]);
+
+  const navigateMonth = (direction: number) => {
+    const newDate = new Date(currentYear, currentMonth + direction, 1);
+    setCurrentMonth(newDate.getMonth());
+    setCurrentYear(newDate.getFullYear());
+  };
+
+  const monthName = new Date(currentYear, currentMonth, 1).toLocaleDateString(
+    currentLang === "pl" ? "pl-PL" : "en-US",
+    { month: "long", year: "numeric" }
+  );
+
+  const dimensionLabel = (key: string) => t(`dimension${key.charAt(0).toUpperCase() + key.slice(1)}` as any);
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="text-lg font-semibold">{monthName}</h3>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={() => navigateMonth(-1)} title={t("previous")}>
+            <ChevronLeft className="size-4 md:hidden" />
+            <span className="hidden md:inline">{t("previous")}</span>
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              const today = new Date();
+              setCurrentMonth(today.getMonth());
+              setCurrentYear(today.getFullYear());
+            }}
+            title={t("today")}
+          >
+            <Calendar className="size-4" />
+            <span className="hidden md:inline">{t("today")}</span>
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => navigateMonth(1)} title={t("next")}>
+            <ChevronRight className="size-4 md:hidden" />
+            <span className="hidden md:inline">{t("next")}</span>
+          </Button>
+        </div>
+      </div>
+      <div className="h-80">
+        {filteredData.length === 0 || activeKeys.length === 0 ? (
+          <div className="flex items-center justify-center h-full text-muted-foreground">
+            {t("noDimensionsForMonth")}
+          </div>
+        ) : (
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={filteredData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+              <XAxis dataKey="date" tick={{ fontSize: 11 }} stroke="#6b7280" />
+              <YAxis
+                tick={{ fontSize: 11 }}
+                stroke="#6b7280"
+                label={{ value: t("dimensionsUnit"), angle: -90, position: "insideLeft" }}
+              />
+              <Tooltip
+                contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "6px" }}
+                formatter={(value: number, name: string) => [`${value} cm`, dimensionLabel(name)]}
+              />
+              <Legend formatter={(value) => dimensionLabel(value)} />
+              {activeKeys.map((key) => (
+                <Line
+                  key={key}
+                  type="monotone"
+                  dataKey={key}
+                  stroke={DIMENSION_COLORS[key]}
+                  strokeWidth={2}
+                  dot={{ r: 3, fill: DIMENSION_COLORS[key] }}
+                  activeDot={{ r: 5 }}
+                  connectNulls={false}
+                />
+              ))}
             </LineChart>
           </ResponsiveContainer>
         )}

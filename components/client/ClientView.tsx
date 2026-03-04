@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { WeightChart } from "./Charts";
+import { WeightChart, DimensionsChart } from "./Charts";
 import { Card, CardHeader, CardContent, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -54,6 +54,18 @@ type Client = {
 
 type WeightPoint = { _id?: string; date: string; weight: number };
 
+type DimensionMeasurements = {
+  neck?: number;
+  chest?: number;
+  waist?: number;
+  hips?: number;
+  bicep?: number;
+  thigh?: number;
+  calf?: number;
+};
+
+type DimensionEntry = { _id?: string; date: string } & DimensionMeasurements;
+
 type WorkoutExercise = {
   name: string;
   sets: number;
@@ -104,6 +116,12 @@ export function ClientView({
     return () => window.removeEventListener('resize', checkScreenSize);
   }, []);
   const [activeTab, setActiveTab] = useState<"workouts" | "progress" | "plans">("workouts");
+  const [progressSubTab, setProgressSubTab] = useState<"weight" | "dimensions">("weight");
+  const [dimensions, setDimensions] = useState<DimensionEntry[]>([]);
+  const [newDimension, setNewDimension] = useState<DimensionMeasurements>({});
+  const [dimensionDate, setDimensionDate] = useState(getTodayDate());
+  const [editingDimension, setEditingDimension] = useState<DimensionEntry | null>(null);
+  const [dimensionError, setDimensionError] = useState("");
   const [showWorkoutPlan, setShowWorkoutPlan] = useState(false);
   const [showDietPlan, setShowDietPlan] = useState(false);
   const [exerciseSets, setExerciseSets] = useState<ExerciseSet[]>([]);
@@ -123,7 +141,7 @@ export function ClientView({
       setClient(data.client);
       setTrainer(data.trainer);
 
-      if (data.trainer?.type === "studio") {
+      if (data.trainer?.type === "personal") {
         const sRes = await fetch(`/api/clients/${clientId}/exercise-sets`);
         if (sRes.ok) {
           const sData = await sRes.json();
@@ -136,7 +154,10 @@ export function ClientView({
       const wRes = await fetch(`/api/clients/${clientId}/weights`);
       if (wRes.ok) setWeights(await wRes.json());
 
-      if (data.trainer?.type !== "studio") {
+      const dRes = await fetch(`/api/clients/${clientId}/dimensions`);
+      if (dRes.ok) setDimensions(await dRes.json());
+
+      if (data.trainer?.type !== "personal") {
         const lRes = await fetch(`/api/clients/${clientId}/logs`);
         if (lRes.ok) setLogs(await lRes.json());
       }
@@ -231,6 +252,64 @@ export function ClientView({
   const cancelEditingWeight = () => {
     setEditingWeight(null);
     setWeightError("");
+  };
+
+  const addDimension = async () => {
+    if (!dimensionDate) return;
+    setDimensionError("");
+    const existing = dimensions.find((d) => d.date === dimensionDate);
+    if (existing) {
+      setDimensionError(t("dimensionsAlreadyExist"));
+      return;
+    }
+    const res = await fetch(`/api/clients/${clientId}/dimensions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ date: dimensionDate, ...newDimension }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      setDimensionError(data.error || t("failedToAddDimensions"));
+      return;
+    }
+    setDimensions((prev) => [...prev, data].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()));
+    setNewDimension({});
+    setDimensionDate(getTodayDate());
+  };
+
+  const updateDimension = async () => {
+    if (!editingDimension?._id) return;
+    setDimensionError("");
+    const existing = dimensions.find((d) => d.date === editingDimension.date && d._id !== editingDimension._id);
+    if (existing) {
+      setDimensionError(t("dimensionsAlreadyExist"));
+      return;
+    }
+    const { _id, date, ...measurements } = editingDimension;
+    const res = await fetch(`/api/clients/${clientId}/dimensions`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ dimensionId: _id, date, ...measurements }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      setDimensionError(data.error || t("failedToUpdateDimensions"));
+      return;
+    }
+    setDimensions((prev) =>
+      prev.map((d) => (d._id === editingDimension._id ? data : d))
+        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+    );
+    setEditingDimension(null);
+  };
+
+  const deleteDimension = async (dimensionId: string) => {
+    if (!confirm(t("confirmDeleteDimensions"))) return;
+    const res = await fetch(`/api/clients/${clientId}/dimensions?dimensionId=${dimensionId}`, { method: "DELETE" });
+    if (res.ok) {
+      setDimensions((prev) => prev.filter((d) => d._id !== dimensionId));
+      if (editingDimension?._id === dimensionId) setEditingDimension(null);
+    }
   };
 
   const submitSelfLog = async () => {
@@ -412,7 +491,7 @@ export function ClientView({
                 : "text-foreground/70 hover:text-foreground hover:bg-muted/50"
             }`}
           >
-            {t("progressChart")}
+            {t("progress")}
           </button>
           <button
             onClick={() => setActiveTab("plans")}
@@ -479,7 +558,7 @@ export function ClientView({
             )}
           </CardHeader>
           <CardContent>
-            {trainer?.type === "studio" && (
+            {trainer?.type === "personal" && (
               <div className="mb-4">
                 {!showSelfLog ? (
                   <Button variant="outline" className="w-full" onClick={() => {
@@ -684,7 +763,7 @@ export function ClientView({
                                       <div className="text-sm font-semibold">
                                         {t("workoutNumber")}{logIdx + 1}
                                       </div>
-                                      {trainer?.type === "studio" && log._id && editingLogId !== log._id && (
+                                      {trainer?.type === "personal" && log._id && editingLogId !== log._id && (
                                         <div className="flex gap-1">
                                           <Button
                                             variant="ghost"
@@ -839,219 +918,282 @@ export function ClientView({
 
       {activeTab === "progress" && (
         <div className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>{editingWeight ? t("editWeight") : t("addWeight")}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {weightError && (
-                  <Alert variant="destructive" className="mb-4">
-                    <AlertDescription>{weightError}</AlertDescription>
-                  </Alert>
-                )}
-                <div className="space-y-4">
-                  <div>
-                    <Label>{t("date")}</Label>
-                    <Input
-                      type="date"
-                      value={editingWeight ? editingWeight.date : weightDate}
-                      onChange={(e) => {
-                        if (editingWeight) {
-                          setEditingWeight({ ...editingWeight, date: e.target.value });
-                        } else {
-                          setWeightDate(e.target.value);
-                        }
-                        setWeightError("");
-                      }}
-                      className="mt-1"
-                    />
-                  </div>
-                  <div>
-                    <Label>{t("weight")}</Label>
-                    <Input
-                      type="number"
-                      step="0.1"
-                      value={editingWeight ? editingWeight.weight.toString() : newWeight}
-                      onChange={(e) => {
-                        if (editingWeight) {
-                          setEditingWeight({ ...editingWeight, weight: parseFloat(e.target.value) || 0 });
-                        } else {
-                          setNewWeight(e.target.value);
-                        }
-                        setWeightError("");
-                      }}
-                      className="mt-1"
-                      placeholder="kg"
-                    />
-                  </div>
-                  <div className="flex gap-2">
-                    {editingWeight ? (
-                      <>
-                        <Button onClick={updateWeight} className="flex-1">
-                          <Save className="size-4" />
-                          {t("save")}
-                        </Button>
-                        <Button onClick={cancelEditingWeight} variant="outline">
-                          <X className="size-4" />
-                        </Button>
-                      </>
-                    ) : (
-                      <Button onClick={addWeight} className="w-full">
-                        <Save className="size-4" />
-                        {t("save")}
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {weights.length > 0 && (
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <CardTitle>{t("weightHistory")}</CardTitle>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setShowWeightHistory(!showWeightHistory)}
-                    >
-                      {showWeightHistory ? (
-                        <>
-                          <ChevronUp className="size-4" />
-                          {t("collapse")}
-                        </>
-                      ) : (
-                        <>
-                          <ChevronDown className="size-4" />
-                          {t("expand")}
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                  {showWeightHistory && (
-                    <div className="flex items-center justify-between mt-4">
-                      <div className="text-sm text-muted-foreground">
-                        {new Date(weightHistoryYear, weightHistoryMonth, 1).toLocaleDateString(currentLang === "pl" ? "pl-PL" : "en-US", {
-                          month: "long",
-                          year: "numeric",
-                        })}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => navigateWeightMonth(-1)}
-                          title={t("previous")}
-                        >
-                          <span className="hidden md:inline">{t("previous")}</span>
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            const today = new Date();
-                            setWeightHistoryMonth(today.getMonth());
-                            setWeightHistoryYear(today.getFullYear());
-                          }}
-                          title={t("today")}
-                        >
-                          <Calendar className="size-4" />
-                          <span className="hidden md:inline">{t("today")}</span>
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => navigateWeightMonth(1)}
-                          title={t("next")}
-                        >
-                          <span className="hidden md:inline">{t("next")}</span>
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-                </CardHeader>
-                {showWeightHistory && (
-                  <CardContent>
-                    {(() => {
-                      const filteredWeights = filterWeightsByMonth(weights, weightHistoryMonth, weightHistoryYear);
-                      
-                      if (filteredWeights.length === 0) {
-                        return (
-                          <p className="text-muted-foreground text-center py-4">
-                            {t("noWeightDataForMonth")} {new Date(weightHistoryYear, weightHistoryMonth, 1).toLocaleDateString(currentLang === "pl" ? "pl-PL" : "en-US", {
-                              month: "long",
-                              year: "numeric",
-                            })}
-                          </p>
-                        );
-                      }
-
-                      return (
-                        <div className="h-[300px] overflow-y-auto space-y-2">
-                          {filteredWeights
-                            .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-                            .map((weight) => (
-                              <div
-                                key={weight._id || weight.date}
-                                className="flex items-center justify-between p-3 border rounded-lg"
-                              >
-                                <div>
-                                  <div className="font-medium">
-                                    {new Date(weight.date).toLocaleDateString(currentLang === "pl" ? "pl-PL" : "en-US", {
-                                      year: "numeric",
-                                      month: "long",
-                                      day: "numeric",
-                                    })}
-                                  </div>
-                                  <div className="text-sm text-muted-foreground">
-                                    {weight.weight} {t("weightUnit")}
-                                  </div>
-                                </div>
-                                <div className="flex gap-2">
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => startEditingWeight(weight)}
-                                    disabled={!!editingWeight}
-                                  >
-                                    <Pencil className="size-4" />
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => deleteWeight(weight._id!)}
-                                    disabled={!!editingWeight}
-                                  >
-                                    <Trash2 className="size-4" />
-                                  </Button>
-                                </div>
-                              </div>
-                            ))}
-                        </div>
-                      );
-                    })()}
-                  </CardContent>
-                )}
-              </Card>
-            )}
+          {/* Progress sub-tab navigation */}
+          <div className="flex gap-1 border-b">
+            <button
+              onClick={() => setProgressSubTab("weight")}
+              className={`px-4 py-2 text-sm font-medium transition-colors whitespace-nowrap rounded-t-lg ${
+                progressSubTab === "weight"
+                  ? "border-b-2 border-primary text-foreground font-semibold bg-muted/30"
+                  : "text-foreground/70 hover:text-foreground hover:bg-muted/50"
+              }`}
+            >
+              {t("weightTab")}
+            </button>
+            <button
+              onClick={() => setProgressSubTab("dimensions")}
+              className={`px-4 py-2 text-sm font-medium transition-colors whitespace-nowrap rounded-t-lg ${
+                progressSubTab === "dimensions"
+                  ? "border-b-2 border-primary text-foreground font-semibold bg-muted/30"
+                  : "text-foreground/70 hover:text-foreground hover:bg-muted/50"
+              }`}
+            >
+              {t("dimensions")}
+            </button>
           </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>{t("progressChart")}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {weights.length > 0 ? (
-                <WeightChart data={weights} lang={lang} />
-              ) : (
-                <p className="text-muted-foreground text-center py-8">
-                  {t("noWeightData")}
-                </p>
-              )}
-            </CardContent>
-          </Card>
+          {/* Weight sub-tab */}
+          {progressSubTab === "weight" && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>{editingWeight ? t("editWeight") : t("addWeight")}</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {weightError && (
+                      <Alert variant="destructive" className="mb-4">
+                        <AlertDescription>{weightError}</AlertDescription>
+                      </Alert>
+                    )}
+                    <div className="space-y-4">
+                      <div>
+                        <Label>{t("date")}</Label>
+                        <Input
+                          type="date"
+                          value={editingWeight ? editingWeight.date : weightDate}
+                          onChange={(e) => {
+                            if (editingWeight) {
+                              setEditingWeight({ ...editingWeight, date: e.target.value });
+                            } else {
+                              setWeightDate(e.target.value);
+                            }
+                            setWeightError("");
+                          }}
+                          className="mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label>{t("weight")}</Label>
+                        <Input
+                          type="number"
+                          step="0.1"
+                          value={editingWeight ? editingWeight.weight.toString() : newWeight}
+                          onChange={(e) => {
+                            if (editingWeight) {
+                              setEditingWeight({ ...editingWeight, weight: parseFloat(e.target.value) || 0 });
+                            } else {
+                              setNewWeight(e.target.value);
+                            }
+                            setWeightError("");
+                          }}
+                          className="mt-1"
+                          placeholder="kg"
+                        />
+                      </div>
+                      <div className="flex gap-2">
+                        {editingWeight ? (
+                          <>
+                            <Button onClick={updateWeight} className="flex-1">
+                              <Save className="size-4" />
+                              {t("save")}
+                            </Button>
+                            <Button onClick={cancelEditingWeight} variant="outline">
+                              <X className="size-4" />
+                            </Button>
+                          </>
+                        ) : (
+                          <Button onClick={addWeight} className="w-full">
+                            <Save className="size-4" />
+                            {t("save")}
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {weights.length > 0 && (
+                  <Card>
+                    <CardHeader>
+                      <div className="flex items-center justify-between">
+                        <CardTitle>{t("weightHistory")}</CardTitle>
+                        <Button variant="ghost" size="sm" onClick={() => setShowWeightHistory(!showWeightHistory)}>
+                          {showWeightHistory ? <><ChevronUp className="size-4" />{t("collapse")}</> : <><ChevronDown className="size-4" />{t("expand")}</>}
+                        </Button>
+                      </div>
+                      {showWeightHistory && (
+                        <div className="flex items-center justify-between mt-4">
+                          <div className="text-sm text-muted-foreground">
+                            {new Date(weightHistoryYear, weightHistoryMonth, 1).toLocaleDateString(currentLang === "pl" ? "pl-PL" : "en-US", { month: "long", year: "numeric" })}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Button variant="outline" size="sm" onClick={() => navigateWeightMonth(-1)} title={t("previous")}>
+                              <ChevronLeft className="size-4" />
+                            </Button>
+                            <Button variant="outline" size="sm" onClick={() => { const t2 = new Date(); setWeightHistoryMonth(t2.getMonth()); setWeightHistoryYear(t2.getFullYear()); }} title={t("today")}>
+                              <Calendar className="size-4" />
+                            </Button>
+                            <Button variant="outline" size="sm" onClick={() => navigateWeightMonth(1)} title={t("next")}>
+                              <ChevronRight className="size-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </CardHeader>
+                    {showWeightHistory && (
+                      <CardContent>
+                        {(() => {
+                          const filteredWeights = filterWeightsByMonth(weights, weightHistoryMonth, weightHistoryYear);
+                          if (filteredWeights.length === 0) {
+                            return <p className="text-muted-foreground text-center py-4">{t("noWeightDataForMonth")}</p>;
+                          }
+                          return (
+                            <div className="h-[300px] overflow-y-auto space-y-2">
+                              {filteredWeights.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((weight) => (
+                                <div key={weight._id || weight.date} className="flex items-center justify-between p-3 border rounded-lg">
+                                  <div>
+                                    <div className="font-medium">{new Date(weight.date).toLocaleDateString(currentLang === "pl" ? "pl-PL" : "en-US", { year: "numeric", month: "long", day: "numeric" })}</div>
+                                    <div className="text-sm text-muted-foreground">{weight.weight} {t("weightUnit")}</div>
+                                  </div>
+                                  <div className="flex gap-2">
+                                    <Button variant="ghost" size="sm" onClick={() => startEditingWeight(weight)} disabled={!!editingWeight}><Pencil className="size-4" /></Button>
+                                    <Button variant="ghost" size="sm" onClick={() => deleteWeight(weight._id!)} disabled={!!editingWeight}><Trash2 className="size-4" /></Button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          );
+                        })()}
+                      </CardContent>
+                    )}
+                  </Card>
+                )}
+              </div>
+
+              <Card>
+                <CardHeader><CardTitle>{t("weightTab")}</CardTitle></CardHeader>
+                <CardContent>
+                  {weights.length > 0 ? (
+                    <WeightChart data={weights} lang={lang} />
+                  ) : (
+                    <p className="text-muted-foreground text-center py-8">{t("noWeightData")}</p>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {/* Dimensions sub-tab */}
+          {progressSubTab === "dimensions" && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>{editingDimension ? t("editDimensions") : t("addDimensions")}</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {dimensionError && (
+                      <Alert variant="destructive" className="mb-4">
+                        <AlertDescription>{dimensionError}</AlertDescription>
+                      </Alert>
+                    )}
+                    <div className="space-y-3">
+                      <div>
+                        <Label>{t("date")}</Label>
+                        <Input
+                          type="date"
+                          value={editingDimension ? editingDimension.date : dimensionDate}
+                          onChange={(e) => {
+                            if (editingDimension) setEditingDimension({ ...editingDimension, date: e.target.value });
+                            else setDimensionDate(e.target.value);
+                            setDimensionError("");
+                          }}
+                          className="mt-1"
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        {(["neck", "chest", "waist", "hips", "bicep", "thigh", "calf"] as const).map((field) => (
+                          <div key={field}>
+                            <Label className="text-xs">{t(`dimension${field.charAt(0).toUpperCase() + field.slice(1)}`)} ({t("dimensionsUnit")})</Label>
+                            <Input
+                              type="number"
+                              step="0.1"
+                              placeholder="—"
+                              value={editingDimension ? (editingDimension[field] ?? "") : (newDimension[field] ?? "")}
+                              onChange={(e) => {
+                                const val = e.target.value ? parseFloat(e.target.value) : undefined;
+                                if (editingDimension) setEditingDimension({ ...editingDimension, [field]: val });
+                                else setNewDimension((prev) => ({ ...prev, [field]: val }));
+                              }}
+                              className="mt-1"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                      <div className="flex gap-2 pt-1">
+                        {editingDimension ? (
+                          <>
+                            <Button onClick={updateDimension} className="flex-1">
+                              <Save className="size-4" />
+                              {t("save")}
+                            </Button>
+                            <Button onClick={() => { setEditingDimension(null); setDimensionError(""); }} variant="outline">
+                              <X className="size-4" />
+                            </Button>
+                          </>
+                        ) : (
+                          <Button onClick={addDimension} className="w-full">
+                            <Save className="size-4" />
+                            {t("saveDimensions")}
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {dimensions.length > 0 && (
+                  <Card>
+                    <CardHeader><CardTitle>{t("dimensionsHistory")}</CardTitle></CardHeader>
+                    <CardContent>
+                      <div className="h-[350px] overflow-y-auto space-y-2">
+                        {[...dimensions].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((entry) => (
+                          <div key={entry._id || entry.date} className="p-3 border rounded-lg">
+                            <div className="flex items-center justify-between mb-1">
+                              <div className="font-medium text-sm">{new Date(entry.date).toLocaleDateString(currentLang === "pl" ? "pl-PL" : "en-US", { year: "numeric", month: "long", day: "numeric" })}</div>
+                              <div className="flex gap-1">
+                                <Button variant="ghost" size="sm" onClick={() => { setEditingDimension({ ...entry }); setDimensionError(""); }} disabled={!!editingDimension}><Pencil className="size-3.5" /></Button>
+                                <Button variant="ghost" size="sm" onClick={() => deleteDimension(entry._id!)} disabled={!!editingDimension}><Trash2 className="size-3.5" /></Button>
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-3 gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
+                              {(["neck", "chest", "waist", "hips", "bicep", "thigh", "calf"] as const).map((field) =>
+                                entry[field] !== undefined ? (
+                                  <span key={field}>{t(`dimension${field.charAt(0).toUpperCase() + field.slice(1)}`)}: <span className="font-medium text-foreground">{entry[field]} {t("dimensionsUnit")}</span></span>
+                                ) : null
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
+
+              <Card>
+                <CardHeader><CardTitle>{t("dimensions")}</CardTitle></CardHeader>
+                <CardContent>
+                  {dimensions.length > 0 ? (
+                    <DimensionsChart data={dimensions} lang={lang} />
+                  ) : (
+                    <p className="text-muted-foreground text-center py-8">{t("noDimensionsData")}</p>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          )}
         </div>
       )}
 

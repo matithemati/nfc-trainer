@@ -92,7 +92,7 @@ export async function POST(req: NextRequest) {
     const trainer = {
       name,
       email,
-      type: type === "studio" ? "studio" : "personal",
+      type: type === "personal" ? "personal" : "studio",
       maxClients: 10,
       exerciseNames: [],
       expirationDate: expirationDate || null,

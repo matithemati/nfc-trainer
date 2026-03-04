@@ -36,8 +36,8 @@ export async function POST(req: NextRequest) {
   try {
     const trainer = await requireTrainer();
 
-    if ((trainer as any).type !== "studio") {
-      return NextResponse.json({ error: "Only studio trainers can manage exercise sets" }, { status: 403 });
+    if ((trainer as any).type !== "personal") {
+      return NextResponse.json({ error: "Only personal trainers can manage exercise sets" }, { status: 403 });
     }
 
     const body = await req.json();

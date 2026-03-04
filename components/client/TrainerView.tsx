@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { getMessages } from "@/lib/i18n";
-import { WeightChart } from "./Charts";
+import { WeightChart, DimensionsChart } from "./Charts";
 import { TrainerMenuBar } from "./TrainerMenuBar";
 import { MembershipStatus } from "./MembershipStatus";
 import { 
@@ -76,6 +76,18 @@ type WorkoutLog = {
 
 type WeightPoint = { _id?: string; date: string; weight: number };
 
+type DimensionEntry = {
+  _id?: string;
+  date: string;
+  neck?: number;
+  chest?: number;
+  waist?: number;
+  hips?: number;
+  bicep?: number;
+  thigh?: number;
+  calf?: number;
+};
+
 export function TrainerView({
   lang,
 }: {
@@ -117,7 +129,9 @@ export function TrainerView({
     exercises: WorkoutExercise[];
   } | null>(null);
   const [clientActiveTab, setClientActiveTab] = useState<"plans" | "workouts" | "history" | "progress">("workouts");
+  const [progressSubTab, setProgressSubTab] = useState<"weight" | "dimensions">("weight");
   const [clientWeights, setClientWeights] = useState<WeightPoint[]>([]);
+  const [clientDimensions, setClientDimensions] = useState<DimensionEntry[]>([]);
   const [exerciseSets, setExerciseSets] = useState<ExerciseSet[]>([]);
   const [showAddSet, setShowAddSet] = useState(false);
   const [newSetName, setNewSetName] = useState("");
@@ -285,7 +299,7 @@ export function TrainerView({
   };
 
   useEffect(() => {
-    if (trainer?.type === "studio") {
+    if (trainer?.type === "personal") {
       loadExerciseSets();
     }
   }, [trainer]);
@@ -316,6 +330,17 @@ export function TrainerView({
       }
     } catch (err) {
       console.error("Failed to load weights:", err);
+    }
+
+    // Load dimensions for this client
+    try {
+      const dRes = await fetch(`/api/clients/${c._id}/dimensions`);
+      if (dRes.ok) {
+        const dims = await dRes.json();
+        setClientDimensions(dims);
+      }
+    } catch (err) {
+      console.error("Failed to load dimensions:", err);
     }
     
     loadExerciseNames();
@@ -662,7 +687,7 @@ export function TrainerView({
         </Card>
       </div>
 
-      {trainer.type === "studio" && (
+      {trainer.type === "personal" && (
         <Card className="w-full">
           <CardHeader>
             <div className="flex items-center justify-between">
@@ -938,7 +963,7 @@ export function TrainerView({
                                       : "text-foreground/70 hover:text-foreground hover:bg-muted/50"
                                   }`}
                                 >
-                                  {t("progressChart")}
+                                  {t("progress")}
                                 </button>
                                 <button
                                   onClick={() => setClientActiveTab("plans")}
@@ -983,7 +1008,7 @@ export function TrainerView({
                                         className="mt-1"
                                       />
                                     </div>
-                                    {trainer.type === "studio" && exerciseSets.length > 0 && (
+                                    {trainer.type === "personal" && exerciseSets.length > 0 && (
                                       <div>
                                         <Label className="text-sm">Load from exercise set</Label>
                                         <select
@@ -1557,13 +1582,69 @@ export function TrainerView({
                             )}
 
                             {clientActiveTab === "progress" && (
-                              <div className="pt-3">
-                                {clientWeights.length > 0 ? (
-                                  <WeightChart data={clientWeights} lang={lang} />
-                                ) : (
-                                  <p className="text-muted-foreground text-sm text-center py-8">
-                                    {t("noWeightData")}
-                                  </p>
+                              <div className="pt-3 space-y-3">
+                                {/* Progress sub-tab navigation */}
+                                <div className="flex gap-1 border-b">
+                                  <button
+                                    onClick={() => setProgressSubTab("weight")}
+                                    className={`px-3 py-1.5 text-xs font-medium transition-colors whitespace-nowrap rounded-t ${
+                                      progressSubTab === "weight"
+                                        ? "border-b-2 border-primary text-foreground font-semibold"
+                                        : "text-foreground/70 hover:text-foreground"
+                                    }`}
+                                  >
+                                    {t("weightTab")}
+                                  </button>
+                                  <button
+                                    onClick={() => setProgressSubTab("dimensions")}
+                                    className={`px-3 py-1.5 text-xs font-medium transition-colors whitespace-nowrap rounded-t ${
+                                      progressSubTab === "dimensions"
+                                        ? "border-b-2 border-primary text-foreground font-semibold"
+                                        : "text-foreground/70 hover:text-foreground"
+                                    }`}
+                                  >
+                                    {t("dimensions")}
+                                  </button>
+                                </div>
+
+                                {progressSubTab === "weight" && (
+                                  <div>
+                                    {clientWeights.length > 0 ? (
+                                      <WeightChart data={clientWeights} lang={lang} />
+                                    ) : (
+                                      <p className="text-muted-foreground text-sm text-center py-8">
+                                        {t("noWeightData")}
+                                      </p>
+                                    )}
+                                  </div>
+                                )}
+
+                                {progressSubTab === "dimensions" && (
+                                  <div>
+                                    {clientDimensions.length > 0 ? (
+                                      <>
+                                        <DimensionsChart data={clientDimensions} lang={lang} />
+                                        <div className="mt-4 space-y-2 max-h-[250px] overflow-y-auto">
+                                          {[...clientDimensions].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((entry) => (
+                                            <div key={entry._id || entry.date} className="p-2 border rounded-lg">
+                                              <div className="text-xs font-medium mb-1">{new Date(entry.date).toLocaleDateString(currentLang === "pl" ? "pl-PL" : "en-US", { year: "numeric", month: "long", day: "numeric" })}</div>
+                                              <div className="grid grid-cols-3 gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
+                                                {(["neck", "chest", "waist", "hips", "bicep", "thigh", "calf"] as const).map((field) =>
+                                                  entry[field] !== undefined ? (
+                                                    <span key={field}>{t(`dimension${field.charAt(0).toUpperCase() + field.slice(1)}`)}: <span className="font-medium text-foreground">{entry[field]} {t("dimensionsUnit")}</span></span>
+                                                  ) : null
+                                                )}
+                                              </div>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </>
+                                    ) : (
+                                      <p className="text-muted-foreground text-sm text-center py-8">
+                                        {t("noDimensionsData")}
+                                      </p>
+                                    )}
+                                  </div>
                                 )}
                               </div>
                             )}
