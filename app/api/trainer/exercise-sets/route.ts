@@ -7,14 +7,24 @@ import * as Sentry from "@sentry/nextjs";
 
 export const runtime = "nodejs";
 
-export async function GET(_req: NextRequest) {
+export async function GET(req: NextRequest) {
   try {
     const trainer = await requireTrainer();
+    const { searchParams } = new URL(req.url);
+    const clientIdParam = searchParams.get("clientId");
+
     const db = await getDb();
+    const query: any = { trainerId: new ObjectId(trainer._id.toString()) };
+    if (clientIdParam && ObjectId.isValid(clientIdParam)) {
+      query.$or = [
+        { clientId: new ObjectId(clientIdParam) },
+        { clientId: { $exists: false } },
+      ];
+    }
 
     const sets = await db
       .collection("exercise-sets")
-      .find({ trainerId: new ObjectId(trainer._id.toString()) })
+      .find(query)
       .sort({ createdAt: 1 })
       .toArray();
 

@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { getMessages } from "@/lib/i18n";
+import { cachedFetch, invalidateCachePrefix } from "@/lib/fetch-cache";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { WeightChart, DimensionsChart } from "./Charts";
 import { TrainerMenuBar } from "./TrainerMenuBar";
@@ -45,6 +46,7 @@ type Trainer = {
   expirationDate?: string | null;
   storeLink?: string;
   storeMessage?: string;
+  exerciseNames?: string[];
 };
 
 type ExerciseSetExercise = {
@@ -157,6 +159,11 @@ export function TrainerView({
   const [storeMessage, setStoreMessage] = useState("");
   const [storeSettingsSaved, setStoreSettingsSaved] = useState(false);
   const [trainerTab, setTrainerTab] = useState<"clients" | "library" | "account">("clients");
+  const [allClients, setAllClients] = useState<Client[]>([]);
+  const [clientSearchResults, setClientSearchResults] = useState<Client[]>([]);
+  const [exerciseSearchResults, setExerciseSearchResults] = useState<string[]>([]);
+  const [clientExerciseSets, setClientExerciseSets] = useState<ExerciseSet[]>([]);
+  const [clientDimensionsDesc, setClientDimensionsDesc] = useState<DimensionEntry[]>([]);
 
   const updateWorkoutExercise = (index: number, field: keyof WorkoutExercise, value: number | undefined) => {
     setWorkoutExercises(prev => prev.map((ex, idx) => idx === index ? { ...ex, [field]: value } : ex));
@@ -171,7 +178,7 @@ export function TrainerView({
 
   const load = async () => {
     try {
-      const res = await fetch(`/api/trainer/clients`);
+      const res = await cachedFetch(`/api/trainer/clients`);
 
       const text = await res.text();
       if (!text) {
@@ -191,7 +198,8 @@ export function TrainerView({
       if (res.ok) {
         setTrainer(data.trainer);
         setClients(data.clients);
-        setExerciseNames((data.trainer as any).exerciseNames || []);
+        setAllClients(data.clients);
+        setExerciseNames(data.trainer.exerciseNames || []);
         setStoreLink(data.trainer.storeLink || "");
         setStoreMessage(data.trainer.storeMessage || "");
       } else {
@@ -208,11 +216,68 @@ export function TrainerView({
 
   useEffect(() => {
     load();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Debounced client search
+  useEffect(() => {
+    const timer = setTimeout(async () => {
+      if (!clientSearchTerm) {
+        setClientSearchResults([]);
+        return;
+      }
+      try {
+        const res = await cachedFetch(`/api/trainer/clients?search=${encodeURIComponent(clientSearchTerm)}`);
+        if (res.ok) {
+          const data = await res.json();
+          setClientSearchResults(data.clients || []);
+        }
+      } catch (err) {
+        console.error("Failed to search clients:", err);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [clientSearchTerm]);
+
+  // Debounced exercise name search
+  useEffect(() => {
+    const timer = setTimeout(async () => {
+      if (!exerciseSearchTerm) {
+        setExerciseSearchResults([]);
+        return;
+      }
+      try {
+        const res = await cachedFetch(`/api/trainer/exercise-names?search=${encodeURIComponent(exerciseSearchTerm)}`);
+        if (res.ok) {
+          const data = await res.json();
+          setExerciseSearchResults(data.exerciseNames || []);
+        }
+      } catch (err) {
+        console.error("Failed to search exercise names:", err);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [exerciseSearchTerm]);
+
+  // Refetch logs when month/year or selected client changes
+  useEffect(() => {
+    if (!selectedClient) return;
+    (async () => {
+      try {
+        const res = await cachedFetch(
+          `/api/clients/${selectedClient._id}/logs?month=${workoutHistoryMonth}&year=${workoutHistoryYear}&order=desc`
+        );
+        if (res.ok) setWorkoutLogs(await res.json());
+      } catch (err) {
+        console.error("Failed to load logs for month:", err);
+      }
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedClient?._id, workoutHistoryMonth, workoutHistoryYear]);
 
   const loadExerciseNames = async () => {
     try {
-      const res = await fetch(`/api/trainer/exercise-names`);
+      const res = await cachedFetch(`/api/trainer/exercise-names`);
       if (res.ok) {
         const data = await res.json();
         setExerciseNames(data.exerciseNames || []);
@@ -236,6 +301,7 @@ export function TrainerView({
         const data = await res.json();
         setExerciseNames(data.exerciseNames || []);
         setNewExerciseName("");
+        invalidateCachePrefix("/api/trainer/exercise-names");
       } else if (res.status === 401) {
         window.location.href = `/${lang}/auth/signin`;
       }
@@ -252,6 +318,7 @@ export function TrainerView({
       if (res.ok) {
         const data = await res.json();
         setExerciseNames(data.exerciseNames || []);
+        invalidateCachePrefix("/api/trainer/exercise-names");
       } else if (res.status === 401) {
         window.location.href = `/${lang}/auth/signin`;
       }
@@ -262,11 +329,12 @@ export function TrainerView({
 
   useEffect(() => {
     loadExerciseNames();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadExerciseSets = async () => {
     try {
-      const res = await fetch("/api/trainer/exercise-sets");
+      const res = await cachedFetch("/api/trainer/exercise-sets");
       if (res.ok) {
         const data = await res.json();
         setExerciseSets(data.exerciseSets || []);
@@ -287,6 +355,7 @@ export function TrainerView({
         body: JSON.stringify({ name: newSetName.trim(), exercises: newSetExercises, clientId: newSetClientId }),
       });
       if (res.ok) {
+        invalidateCachePrefix("/api/trainer/exercise-sets");
         await loadExerciseSets();
         setShowAddSet(false);
         setNewSetName("");
@@ -308,6 +377,7 @@ export function TrainerView({
         body: JSON.stringify({ setId: editingSet._id, name: editingSet.name, exercises: editingSet.exercises }),
       });
       if (res.ok) {
+        invalidateCachePrefix("/api/trainer/exercise-sets");
         await loadExerciseSets();
         setEditingSet(null);
       }
@@ -321,6 +391,7 @@ export function TrainerView({
     try {
       const res = await fetch(`/api/trainer/exercise-sets?setId=${setId}`, { method: "DELETE" });
       if (res.ok) {
+        invalidateCachePrefix("/api/trainer/exercise-sets");
         setExerciseSets((prev) => prev.filter((s) => s._id !== setId));
       }
     } catch (err) {
@@ -332,6 +403,7 @@ export function TrainerView({
     if (trainer?.type === "personal") {
       loadExerciseSets();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trainer]);
 
   const selectClient = async (c: Client) => {
@@ -341,35 +413,36 @@ export function TrainerView({
     setClientActiveTab("workouts");
     setShowAddWorkout(false);
     setEditingWorkout(null);
+    // Logs are fetched by the month-based useEffect when selectedClient changes
 
     try {
-      const res = await fetch(`/api/clients/${c._id}/logs`);
-      if (res.ok) {
-        const logs = await res.json();
-        setWorkoutLogs(logs);
-      }
-    } catch (err) {
-      console.error("Failed to load workout logs:", err);
-    }
-
-    try {
-      const wRes = await fetch(`/api/clients/${c._id}/weights`);
-      if (wRes.ok) {
-        const weights = await wRes.json();
-        setClientWeights(weights);
-      }
+      const wRes = await cachedFetch(`/api/clients/${c._id}/weights`);
+      if (wRes.ok) setClientWeights(await wRes.json());
     } catch (err) {
       console.error("Failed to load weights:", err);
     }
 
     try {
-      const dRes = await fetch(`/api/clients/${c._id}/dimensions`);
-      if (dRes.ok) {
-        const dims = await dRes.json();
-        setClientDimensions(dims);
-      }
+      const [dRes, dDescRes] = await Promise.all([
+        cachedFetch(`/api/clients/${c._id}/dimensions`),
+        cachedFetch(`/api/clients/${c._id}/dimensions?order=desc`),
+      ]);
+      if (dRes.ok) setClientDimensions(await dRes.json());
+      if (dDescRes.ok) setClientDimensionsDesc(await dDescRes.json());
     } catch (err) {
       console.error("Failed to load dimensions:", err);
+    }
+
+    if (trainer?.type === "personal") {
+      try {
+        const sRes = await cachedFetch(`/api/trainer/exercise-sets?clientId=${c._id}`);
+        if (sRes.ok) {
+          const sData = await sRes.json();
+          setClientExerciseSets(sData.exerciseSets || []);
+        }
+      } catch (err) {
+        console.error("Failed to load client exercise sets:", err);
+      }
     }
 
     loadExerciseNames();
@@ -397,6 +470,7 @@ export function TrainerView({
       setClients((prev) =>
         prev.map((c) => (c._id === updated._id ? updated : c))
       );
+      invalidateCachePrefix("/api/trainer/clients");
     } catch (err) {
       setError("Failed to save plan");
       console.error("Save error:", err);
@@ -411,10 +485,7 @@ export function TrainerView({
       headers: { "Content-Type": "application/json" },
     });
     if (res.ok) {
-      const updated = await res.json();
-      setWorkoutLogs((prev) =>
-        prev.map((log) => (log._id === logId ? updated : log))
-      );
+      await refreshLogs(selectedClient._id, workoutHistoryMonth, workoutHistoryYear);
       setEditingExercise(null);
     }
   };
@@ -426,7 +497,7 @@ export function TrainerView({
       method: "DELETE",
     });
     if (res.ok) {
-      setWorkoutLogs((prev) => prev.filter((log) => log._id !== logId));
+      await refreshLogs(selectedClient._id, workoutHistoryMonth, workoutHistoryYear);
     }
   };
 
@@ -460,11 +531,14 @@ export function TrainerView({
     return grouped;
   };
 
-  const filterLogsByMonth = (logs: WorkoutLog[], month: number, year: number) => {
-    return logs.filter((log) => {
-      const logDate = new Date(log.date);
-      return logDate.getMonth() === month && logDate.getFullYear() === year;
-    });
+  const refreshLogs = async (clientId: string, month: number, year: number) => {
+    try {
+      invalidateCachePrefix(`/api/clients/${clientId}/logs`);
+      const res = await cachedFetch(`/api/clients/${clientId}/logs?month=${month}&year=${year}&order=desc`);
+      if (res.ok) setWorkoutLogs(await res.json());
+    } catch (err) {
+      console.error("Failed to refresh logs:", err);
+    }
   };
 
   const navigateWorkoutMonth = (direction: number) => {
@@ -492,8 +566,7 @@ export function TrainerView({
         headers: { "Content-Type": "application/json" },
       });
       if (res.ok) {
-        const newLog = await res.json();
-        setWorkoutLogs((prev) => [...prev, newLog]);
+        await refreshLogs(selectedClient._id, workoutHistoryMonth, workoutHistoryYear);
         setShowAddWorkout(false);
         setWorkoutExercises([]);
         setNewExercise({ name: "", sets: 3, reps: 10, weight: undefined });
@@ -544,6 +617,10 @@ export function TrainerView({
       const data = await res.json();
       if (res.ok) {
         setClients((prev) => [...prev, data]);
+        setAllClients((prev) => [...prev, data]);
+        invalidateCachePrefix("/api/trainer/clients");
+        setClientSearchTerm("");
+        setClientSearchResults([]);
         setNewClientName("");
         setShowAddClient(false);
       } else {
@@ -566,6 +643,8 @@ export function TrainerView({
         const updated = await res.json();
         setClients((prev) => prev.map((c) => (c._id === clientId ? { ...c, name: updated.name } : c)));
         if (selectedClient?._id === clientId) setSelectedClient((prev) => prev ? { ...prev, name: updated.name } : prev);
+        invalidateCachePrefix("/api/trainer/clients");
+        invalidateCachePrefix(`/api/clients/${clientId}`);
         setRenamingClientId(null);
         setRenameClientName("");
       }
@@ -679,9 +758,9 @@ export function TrainerView({
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-sm font-semibold">
-                  {t("clients")} <span className="text-muted-foreground font-normal">({clients.length}/{trainer.maxClients})</span>
+                  {t("clients")} <span className="text-muted-foreground font-normal">({allClients.length}/{trainer.maxClients})</span>
                 </CardTitle>
-                {clients.length < trainer.maxClients && !showAddClient && (
+                {allClients.length < trainer.maxClients && !showAddClient && (
                   <Button size="sm" variant="outline" className="h-7 w-7 p-0" onClick={() => setShowAddClient(true)}>
                     <Plus className="size-3.5" />
                   </Button>
@@ -715,8 +794,7 @@ export function TrainerView({
               {clients.length === 0 ? (
                 <p className="text-muted-foreground text-sm py-4 text-center">{t("noClientsYet")}</p>
               ) : (
-                clients
-                  .filter((c) => !clientSearchTerm || c.name.toLowerCase().includes(clientSearchTerm.toLowerCase()))
+                (clientSearchTerm ? clientSearchResults : clients)
                   .map((c) => (
                     <div
                       key={c._id}
@@ -816,32 +894,29 @@ export function TrainerView({
                           <Input type="date" value={workoutDate} onChange={(e) => setWorkoutDate(e.target.value)} className="w-auto" />
                         </div>
 
-                        {trainer.type === "personal" && (() => {
-                          const clientSets = exerciseSets.filter((s) => !s.clientId || s.clientId === selectedClient._id);
-                          return clientSets.length > 0 ? (
-                            <div className="flex items-center gap-3">
-                              <Label className="text-sm shrink-0">{t("loadFromExerciseSet")}</Label>
-                              <select
-                                value={selectedExerciseSetId}
-                                onChange={(e) => {
-                                  setSelectedExerciseSetId(e.target.value);
-                                  if (e.target.value) {
-                                    const set = clientSets.find((s) => s._id === e.target.value);
-                                    if (set) {
-                                      setWorkoutExercises(set.exercises.map((ex) => ({
-                                        name: ex.name, sets: ex.defaultSets, reps: ex.defaultReps, weight: ex.defaultWeight,
-                                      })));
-                                    }
+                        {trainer.type === "personal" && clientExerciseSets.length > 0 && (
+                          <div className="flex items-center gap-3">
+                            <Label className="text-sm shrink-0">{t("loadFromExerciseSet")}</Label>
+                            <select
+                              value={selectedExerciseSetId}
+                              onChange={(e) => {
+                                setSelectedExerciseSetId(e.target.value);
+                                if (e.target.value) {
+                                  const set = clientExerciseSets.find((s) => s._id === e.target.value);
+                                  if (set) {
+                                    setWorkoutExercises(set.exercises.map((ex) => ({
+                                      name: ex.name, sets: ex.defaultSets, reps: ex.defaultReps, weight: ex.defaultWeight,
+                                    })));
                                   }
-                                }}
-                                className="flex-1 px-3 py-2 border rounded-md bg-background text-foreground text-sm"
-                              >
-                                <option value="">{t("selectExerciseSet")}</option>
-                                {clientSets.map((s) => (<option key={s._id} value={s._id}>{s.name}</option>))}
-                              </select>
-                            </div>
-                          ) : null;
-                        })()}
+                                }
+                              }}
+                              className="flex-1 px-3 py-2 border rounded-md bg-background text-foreground text-sm"
+                            >
+                              <option value="">{t("selectExerciseSet")}</option>
+                              {clientExerciseSets.map((s) => (<option key={s._id} value={s._id}>{s.name}</option>))}
+                            </select>
+                          </div>
+                        )}
 
                         {/* Editable exercise table */}
                         {workoutExercises.length > 0 && (
@@ -901,28 +976,22 @@ export function TrainerView({
                 {/* HISTORY TAB */}
                 {clientActiveTab === "history" && (
                   <div className="space-y-3">
-                    {workoutLogs.length > 0 && (
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <Button variant="outline" size="sm" onClick={() => navigateWorkoutMonth(-1)} title={t("previous")}>
-                          <ChevronLeft className="size-4 md:hidden" /><span className="hidden md:inline">{t("previous")}</span>
-                        </Button>
-                        <Button variant="outline" size="sm" onClick={() => { const today = new Date(); setWorkoutHistoryMonth(today.getMonth()); setWorkoutHistoryYear(today.getFullYear()); }}>
-                          <Calendar className="size-4" /><span className="hidden md:inline ml-1">{t("today")}</span>
-                        </Button>
-                        <Button variant="outline" size="sm" onClick={() => navigateWorkoutMonth(1)} title={t("next")}>
-                          <ChevronRight className="size-4 md:hidden" /><span className="hidden md:inline">{t("next")}</span>
-                        </Button>
-                        <span className="text-sm text-muted-foreground ml-auto">
-                          {new Date(workoutHistoryYear, workoutHistoryMonth, 1).toLocaleDateString(currentLang === "pl" ? "pl-PL" : "en-US", { month: "long", year: "numeric" })}
-                        </span>
-                      </div>
-                    )}
-                    {workoutLogs.length === 0 ? (
-                      <p className="text-muted-foreground text-sm">{t("noWorkoutHistory")}</p>
-                    ) : (
-                      (() => {
-                        const filteredLogs = filterLogsByMonth(workoutLogs, workoutHistoryMonth, workoutHistoryYear);
-                        const groupedLogs = groupLogsByDay(filteredLogs);
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Button variant="outline" size="sm" onClick={() => navigateWorkoutMonth(-1)} title={t("previous")}>
+                        <ChevronLeft className="size-4 md:hidden" /><span className="hidden md:inline">{t("previous")}</span>
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => { const today = new Date(); setWorkoutHistoryMonth(today.getMonth()); setWorkoutHistoryYear(today.getFullYear()); }}>
+                        <Calendar className="size-4" /><span className="hidden md:inline ml-1">{t("today")}</span>
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => navigateWorkoutMonth(1)} title={t("next")}>
+                        <ChevronRight className="size-4 md:hidden" /><span className="hidden md:inline">{t("next")}</span>
+                      </Button>
+                      <span className="text-sm text-muted-foreground ml-auto">
+                        {new Date(workoutHistoryYear, workoutHistoryMonth, 1).toLocaleDateString(currentLang === "pl" ? "pl-PL" : "en-US", { month: "long", year: "numeric" })}
+                      </span>
+                    </div>
+                    {(() => {
+                        const groupedLogs = groupLogsByDay(workoutLogs);
                         if (Object.keys(groupedLogs).length === 0) {
                           return (
                             <p className="text-muted-foreground text-sm">
@@ -933,7 +1002,6 @@ export function TrainerView({
                         return (
                           <div className="space-y-3">
                             {Object.entries(groupedLogs)
-                              .sort(([a], [b]) => new Date(b).getTime() - new Date(a).getTime())
                               .map(([date, dayLogs]) => {
                                 const isExpanded = expandedDays.has(date);
                                 const totalExercises = dayLogs.reduce((sum, log) => sum + (log.exercises?.length || 0), 0);
@@ -1057,7 +1125,7 @@ export function TrainerView({
                           </div>
                         );
                       })()
-                    )}
+                    }
                   </div>
                 )}
 
@@ -1087,7 +1155,7 @@ export function TrainerView({
                         <>
                           <DimensionsChart data={clientDimensions} lang={lang} />
                           <div className="mt-4 space-y-2 max-h-[250px] overflow-y-auto">
-                            {[...clientDimensions].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((entry) => (
+                            {clientDimensionsDesc.map((entry) => (
                               <div key={entry._id || entry.date} className="p-2 border rounded-lg">
                                 <div className="text-xs font-medium mb-1">{new Date(entry.date).toLocaleDateString(currentLang === "pl" ? "pl-PL" : "en-US", { year: "numeric", month: "long", day: "numeric" })}</div>
                                 <div className="grid grid-cols-3 gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
@@ -1148,7 +1216,7 @@ export function TrainerView({
                     <Input value={exerciseSearchTerm} onChange={(e) => setExerciseSearchTerm(e.target.value)} placeholder={t("search")} className="pl-9" />
                   </div>
                   <div className="space-y-1.5 max-h-[360px] overflow-y-auto">
-                    {exerciseNames.filter((name) => name.toLowerCase().includes(exerciseSearchTerm.toLowerCase())).map((name) => (
+                    {(exerciseSearchTerm ? exerciseSearchResults : exerciseNames).map((name) => (
                       <div key={name} className="flex items-center justify-between p-2 border rounded">
                         <span className="text-sm">{name}</span>
                         <Button variant="ghost" size="sm" onClick={() => deleteExerciseName(name)} title={t("delete")}><Trash2 className="size-3.5" /></Button>

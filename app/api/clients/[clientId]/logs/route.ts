@@ -8,7 +8,7 @@ import * as Sentry from "@sentry/nextjs";
 export const runtime = "nodejs";
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ clientId: string }> | { clientId: string } }
 ) {
   try {
@@ -24,11 +24,28 @@ export async function GET(
       return NextResponse.json({ error: "Invalid client ID format" }, { status: 400 });
     }
 
+    const { searchParams } = new URL(req.url);
+    const monthParam = searchParams.get("month");
+    const yearParam = searchParams.get("year");
+    const order = searchParams.get("order") === "desc" ? -1 : 1;
+
+    const query: any = { clientId: new ObjectId(clientId) };
+    if (monthParam !== null && yearParam !== null) {
+      const month = parseInt(monthParam);
+      const year = parseInt(yearParam);
+      const startDate = `${year}-${String(month + 1).padStart(2, "0")}-01`;
+      const endDate =
+        month === 11
+          ? `${year + 1}-01-01`
+          : `${year}-${String(month + 2).padStart(2, "0")}-01`;
+      query.date = { $gte: startDate, $lt: endDate };
+    }
+
     const db = await getDb();
     const logs = await db
       .collection("workouts")
-      .find({ clientId: new ObjectId(clientId) })
-      .sort({ date: 1 })
+      .find(query)
+      .sort({ date: order })
       .toArray();
     return NextResponse.json(logs);
   } catch (error) {

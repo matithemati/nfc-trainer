@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { getMessages } from "@/lib/i18n";
+import { cachedFetch, invalidateCachePrefix } from "@/lib/fetch-cache";
 import { ClientMenuBar } from "./ClientMenuBar";
 import {
   ChevronLeft,
@@ -136,36 +137,85 @@ export function ClientView({
   const [editingLogDate, setEditingLogDate] = useState("");
   const [editingLogExercises, setEditingLogExercises] = useState<WorkoutExercise[]>([]);
   const [editingLogSetId, setEditingLogSetId] = useState("");
+  const [weightHistoryData, setWeightHistoryData] = useState<WeightPoint[]>([]);
+  const [dimensionHistoryData, setDimensionHistoryData] = useState<DimensionEntry[]>([]);
 
   useEffect(() => {
     (async () => {
-      const res = await fetch(`/api/clients/${clientId}`);
+      const res = await cachedFetch(`/api/clients/${clientId}`);
       const data = await res.json();
       setClient(data.client);
       setTrainer(data.trainer);
 
       if (data.trainer?.type === "personal") {
-        const sRes = await fetch(`/api/clients/${clientId}/exercise-sets`);
+        const sRes = await cachedFetch(`/api/clients/${clientId}/exercise-sets`);
         if (sRes.ok) {
           const sData = await sRes.json();
           setExerciseSets(sData.exerciseSets || []);
         }
-        const lRes = await fetch(`/api/clients/${clientId}/logs`);
-        if (lRes.ok) setLogs(await lRes.json());
+        // logs fetched by the month-based useEffect
       }
 
-      const wRes = await fetch(`/api/clients/${clientId}/weights`);
+      const wRes = await cachedFetch(`/api/clients/${clientId}/weights`);
       if (wRes.ok) setWeights(await wRes.json());
 
-      const dRes = await fetch(`/api/clients/${clientId}/dimensions`);
+      const [dRes, dDescRes] = await Promise.all([
+        cachedFetch(`/api/clients/${clientId}/dimensions`),
+        cachedFetch(`/api/clients/${clientId}/dimensions?order=desc`),
+      ]);
       if (dRes.ok) setDimensions(await dRes.json());
-
-      if (data.trainer?.type !== "personal") {
-        const lRes = await fetch(`/api/clients/${clientId}/logs`);
-        if (lRes.ok) setLogs(await lRes.json());
-      }
+      if (dDescRes.ok) setDimensionHistoryData(await dDescRes.json());
+      // logs fetched by the month-based useEffect for all trainer types
     })();
   }, [clientId]);
+
+  // Fetch logs when month/year changes (or on mount)
+  useEffect(() => {
+    (async () => {
+      const res = await cachedFetch(
+        `/api/clients/${clientId}/logs?month=${workoutHistoryMonth}&year=${workoutHistoryYear}&order=desc`
+      );
+      if (res.ok) setLogs(await res.json());
+    })();
+  }, [clientId, workoutHistoryMonth, workoutHistoryYear]);
+
+  // Fetch weight history when month/year changes (or on mount)
+  useEffect(() => {
+    (async () => {
+      const res = await cachedFetch(
+        `/api/clients/${clientId}/weights?month=${weightHistoryMonth}&year=${weightHistoryYear}&order=desc`
+      );
+      if (res.ok) setWeightHistoryData(await res.json());
+    })();
+  }, [clientId, weightHistoryMonth, weightHistoryYear]);
+
+  const refreshWeights = async () => {
+    invalidateCachePrefix(`/api/clients/${clientId}/weights`);
+    const [wRes, whRes] = await Promise.all([
+      cachedFetch(`/api/clients/${clientId}/weights`),
+      cachedFetch(`/api/clients/${clientId}/weights?month=${weightHistoryMonth}&year=${weightHistoryYear}&order=desc`),
+    ]);
+    if (wRes.ok) setWeights(await wRes.json());
+    if (whRes.ok) setWeightHistoryData(await whRes.json());
+  };
+
+  const refreshDimensions = async () => {
+    invalidateCachePrefix(`/api/clients/${clientId}/dimensions`);
+    const [dRes, ddRes] = await Promise.all([
+      cachedFetch(`/api/clients/${clientId}/dimensions`),
+      cachedFetch(`/api/clients/${clientId}/dimensions?order=desc`),
+    ]);
+    if (dRes.ok) setDimensions(await dRes.json());
+    if (ddRes.ok) setDimensionHistoryData(await ddRes.json());
+  };
+
+  const refreshLogs = async () => {
+    invalidateCachePrefix(`/api/clients/${clientId}/logs`);
+    const res = await cachedFetch(
+      `/api/clients/${clientId}/logs?month=${workoutHistoryMonth}&year=${workoutHistoryYear}&order=desc`
+    );
+    if (res.ok) setLogs(await res.json());
+  };
 
   const addWeight = async () => {
     if (!newWeight || !weightDate) return;
@@ -193,7 +243,7 @@ export function ClientView({
       return;
     }
     
-    setWeights((prev) => [...prev, data].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()));
+    await refreshWeights();
     setNewWeight("");
     setWeightDate(getTodayDate());
   };
@@ -225,10 +275,7 @@ export function ClientView({
       return;
     }
     
-    setWeights((prev) => 
-      prev.map(w => w._id === editingWeight._id ? data : w)
-        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-    );
+    await refreshWeights();
     setEditingWeight(null);
   };
 
@@ -240,7 +287,9 @@ export function ClientView({
     });
     
     if (res.ok) {
+      invalidateCachePrefix(`/api/clients/${clientId}/weights`);
       setWeights((prev) => prev.filter(w => w._id !== weightId));
+      setWeightHistoryData((prev) => prev.filter(w => w._id !== weightId));
       if (editingWeight?._id === weightId) {
         setEditingWeight(null);
       }
@@ -275,7 +324,7 @@ export function ClientView({
       setDimensionError(data.error || t("failedToAddDimensions"));
       return;
     }
-    setDimensions((prev) => [...prev, data].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()));
+    await refreshDimensions();
     setNewDimension({});
     setDimensionDate(getTodayDate());
   };
@@ -299,10 +348,7 @@ export function ClientView({
       setDimensionError(data.error || t("failedToUpdateDimensions"));
       return;
     }
-    setDimensions((prev) =>
-      prev.map((d) => (d._id === editingDimension._id ? data : d))
-        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-    );
+    await refreshDimensions();
     setEditingDimension(null);
   };
 
@@ -310,7 +356,9 @@ export function ClientView({
     if (!confirm(t("confirmDeleteDimensions"))) return;
     const res = await fetch(`/api/clients/${clientId}/dimensions?dimensionId=${dimensionId}`, { method: "DELETE" });
     if (res.ok) {
+      invalidateCachePrefix(`/api/clients/${clientId}/dimensions`);
       setDimensions((prev) => prev.filter((d) => d._id !== dimensionId));
+      setDimensionHistoryData((prev) => prev.filter((d) => d._id !== dimensionId));
       if (editingDimension?._id === dimensionId) setEditingDimension(null);
     }
   };
@@ -323,8 +371,7 @@ export function ClientView({
       body: JSON.stringify({ date: selfLogDate, exercises: selfLogExercises }),
     });
     if (res.ok) {
-      const newLog = await res.json();
-      setLogs((prev) => [...prev, newLog].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()));
+      await refreshLogs();
       setShowSelfLog(false);
       setSelfLogSetId("");
       setSelfLogExercises([]);
@@ -355,11 +402,7 @@ export function ClientView({
       body: JSON.stringify({ logId: editingLogId, date: editingLogDate, exercises: editingLogExercises }),
     });
     if (res.ok) {
-      const updated = await res.json();
-      setLogs((prev) =>
-        prev.map((l) => (l._id === editingLogId ? updated : l))
-          .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-      );
+      await refreshLogs();
       cancelEditLog();
     }
   };
@@ -370,6 +413,7 @@ export function ClientView({
       method: "DELETE",
     });
     if (res.ok) {
+      invalidateCachePrefix(`/api/clients/${clientId}/logs`);
       setLogs((prev) => prev.filter((l) => l._id !== logId));
     }
   };
@@ -386,13 +430,6 @@ export function ClientView({
     return grouped;
   };
 
-  const filterLogsByMonth = (logs: WorkoutLog[], month: number, year: number) => {
-    return logs.filter((log) => {
-      const logDate = new Date(log.date);
-      return logDate.getMonth() === month && logDate.getFullYear() === year;
-    });
-  };
-
   const navigateWorkoutMonth = (direction: number) => {
     const newDate = new Date(workoutHistoryYear, workoutHistoryMonth + direction, 1);
     setWorkoutHistoryMonth(newDate.getMonth());
@@ -403,13 +440,6 @@ export function ClientView({
     const newDate = new Date(weightHistoryYear, weightHistoryMonth + direction, 1);
     setWeightHistoryMonth(newDate.getMonth());
     setWeightHistoryYear(newDate.getFullYear());
-  };
-
-  const filterWeightsByMonth = (weights: WeightPoint[], month: number, year: number) => {
-    return weights.filter((weight) => {
-      const weightDate = new Date(weight.date);
-      return weightDate.getMonth() === month && weightDate.getFullYear() === year;
-    });
   };
 
   if (!client) return <div>{t("loading")}</div>;
@@ -536,50 +566,46 @@ export function ClientView({
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle>{t("workoutHistory")}</CardTitle>
-              {logs.length > 0 && (
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => navigateWorkoutMonth(-1)}
-                    title={t("previous")}
-                  >
-                    <ChevronLeft className="size-4 md:hidden" />
-                    <span className="hidden md:inline">{t("previous")}</span>
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      const today = new Date();
-                      setWorkoutHistoryMonth(today.getMonth());
-                      setWorkoutHistoryYear(today.getFullYear());
-                    }}
-                    title={t("today")}
-                  >
-                    <Calendar className="size-4" />
-                    <span className="hidden md:inline">{t("today")}</span>
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => navigateWorkoutMonth(1)}
-                    title={t("next")}
-                  >
-                    <ChevronRight className="size-4 md:hidden" />
-                    <span className="hidden md:inline">{t("next")}</span>
-                  </Button>
-                </div>
-              )}
-            </div>
-            {logs.length > 0 && (
-              <div className="text-sm text-muted-foreground mt-2">
-                {new Date(workoutHistoryYear, workoutHistoryMonth, 1).toLocaleDateString(currentLang === "pl" ? "pl-PL" : "en-US", {
-                  month: "long",
-                  year: "numeric",
-                })}
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => navigateWorkoutMonth(-1)}
+                  title={t("previous")}
+                >
+                  <ChevronLeft className="size-4 md:hidden" />
+                  <span className="hidden md:inline">{t("previous")}</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const today = new Date();
+                    setWorkoutHistoryMonth(today.getMonth());
+                    setWorkoutHistoryYear(today.getFullYear());
+                  }}
+                  title={t("today")}
+                >
+                  <Calendar className="size-4" />
+                  <span className="hidden md:inline">{t("today")}</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => navigateWorkoutMonth(1)}
+                  title={t("next")}
+                >
+                  <ChevronRight className="size-4 md:hidden" />
+                  <span className="hidden md:inline">{t("next")}</span>
+                </Button>
               </div>
-            )}
+            </div>
+            <div className="text-sm text-muted-foreground mt-2">
+              {new Date(workoutHistoryYear, workoutHistoryMonth, 1).toLocaleDateString(currentLang === "pl" ? "pl-PL" : "en-US", {
+                month: "long",
+                year: "numeric",
+              })}
+            </div>
           </CardHeader>
           <CardContent>
             {trainer?.type === "personal" && (
@@ -702,9 +728,8 @@ export function ClientView({
               <p className="text-muted-foreground">{t("noWorkoutHistory")}</p>
             ) : (
               (() => {
-                const filteredLogs = filterLogsByMonth(logs, workoutHistoryMonth, workoutHistoryYear);
-                const groupedLogs = groupLogsByDay(filteredLogs);
-                
+                const groupedLogs = groupLogsByDay(logs);
+
                 if (Object.keys(groupedLogs).length === 0) {
                   return (
                     <p className="text-muted-foreground">
@@ -719,7 +744,6 @@ export function ClientView({
                 return (
                   <div className="space-y-6">
                     {Object.entries(groupedLogs)
-                      .sort(([dateA], [dateB]) => new Date(dateB).getTime() - new Date(dateA).getTime())
                       .map(([date, dayLogs]) => {
                         const isExpanded = expandedDays.has(date);
                         const totalExercises = dayLogs.reduce((sum, log) => sum + (log.exercises?.length || 0), 0);
@@ -1068,13 +1092,12 @@ export function ClientView({
                     {showWeightHistory && (
                       <CardContent>
                         {(() => {
-                          const filteredWeights = filterWeightsByMonth(weights, weightHistoryMonth, weightHistoryYear);
-                          if (filteredWeights.length === 0) {
+                          if (weightHistoryData.length === 0) {
                             return <p className="text-muted-foreground text-center py-4">{t("noWeightDataForMonth")}</p>;
                           }
                           return (
                             <div className="h-[300px] overflow-y-auto space-y-2">
-                              {filteredWeights.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((weight) => (
+                              {weightHistoryData.map((weight) => (
                                 <div key={weight._id || weight.date} className="flex items-center justify-between p-3 border rounded-lg">
                                   <div>
                                     <div className="font-medium">{new Date(weight.date).toLocaleDateString(currentLang === "pl" ? "pl-PL" : "en-US", { year: "numeric", month: "long", day: "numeric" })}</div>
@@ -1177,12 +1200,12 @@ export function ClientView({
                   </CardContent>
                 </Card>
 
-                {dimensions.length > 0 && (
+                {dimensionHistoryData.length > 0 && (
                   <Card>
                     <CardHeader><CardTitle>{t("dimensionsHistory")}</CardTitle></CardHeader>
                     <CardContent>
                       <div className="h-[350px] overflow-y-auto space-y-2">
-                        {[...dimensions].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((entry) => (
+                        {dimensionHistoryData.map((entry) => (
                           <div key={entry._id || entry.date} className="p-3 border rounded-lg">
                             <div className="flex items-center justify-between mb-1">
                               <div className="font-medium text-sm">{new Date(entry.date).toLocaleDateString(currentLang === "pl" ? "pl-PL" : "en-US", { year: "numeric", month: "long", day: "numeric" })}</div>

@@ -7,9 +7,11 @@ import * as Sentry from "@sentry/nextjs";
 
 export const runtime = "nodejs";
 
-export async function GET(_req: NextRequest) {
+export async function GET(req: NextRequest) {
   try {
     const trainer = await requireTrainer();
+    const { searchParams } = new URL(req.url);
+    const search = searchParams.get("search")?.toLowerCase();
 
     const db = await getDb();
     const updatedTrainer = await db
@@ -20,7 +22,10 @@ export async function GET(_req: NextRequest) {
       return NextResponse.json({ error: "Trainer not found" }, { status: 404 });
     }
 
-    const exerciseNames = (updatedTrainer as any).exerciseNames || [];
+    let exerciseNames: string[] = (updatedTrainer as any).exerciseNames || [];
+    if (search) {
+      exerciseNames = exerciseNames.filter((n: string) => n.toLowerCase().includes(search));
+    }
     return NextResponse.json({ exerciseNames });
   } catch (error) {
     console.error("Error fetching exercise names:", error);

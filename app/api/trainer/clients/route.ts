@@ -7,14 +7,21 @@ import * as Sentry from "@sentry/nextjs";
 
 export const runtime = "nodejs";
 
-export async function GET(_req: NextRequest) {
+export async function GET(req: NextRequest) {
   try {
     const trainer = await requireTrainer();
+    const { searchParams } = new URL(req.url);
+    const search = searchParams.get("search");
 
     const db = await getDb();
+    const query: any = { trainerId: new ObjectId(trainer._id) };
+    if (search) {
+      query.name = { $regex: search, $options: "i" };
+    }
     const clients = await db
       .collection("clients")
-      .find({ trainerId: new ObjectId(trainer._id) })
+      .find(query)
+      .sort({ name: 1 })
       .toArray();
 
     const span = Sentry.getActiveSpan();
