@@ -123,6 +123,16 @@
   body {
     @apply bg-background text-foreground;
   }
+
+  /* Fix text selection visibility — primary is near-white in light mode */
+  ::selection {
+    background-color: oklch(0.708 0 0 / 0.3);
+    color: oklch(0.145 0 0);
+  }
+  .dark ::selection {
+    background-color: oklch(0.556 0 0 / 0.4);
+    color: oklch(0.985 0 0);
+  }
   
   /* Custom scrollbar styling */
   * {

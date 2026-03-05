@@ -41,9 +41,10 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { name, exercises } = body as {
+    const { name, exercises, clientId } = body as {
       name: string;
       exercises: { name: string; defaultSets: number; defaultReps: number; defaultWeight?: number }[];
+      clientId?: string;
     };
 
     if (!name || !name.trim()) {
@@ -54,12 +55,27 @@ export async function POST(req: NextRequest) {
     }
 
     const db = await getDb();
-    const doc = {
+
+    // If clientId provided, verify the client belongs to this trainer
+    if (clientId && ObjectId.isValid(clientId)) {
+      const clientDoc = await db.collection("clients").findOne({
+        _id: new ObjectId(clientId),
+        trainerId: new ObjectId(trainer._id.toString()),
+      });
+      if (!clientDoc) {
+        return NextResponse.json({ error: "Client not found" }, { status: 404 });
+      }
+    }
+
+    const doc: any = {
       trainerId: new ObjectId(trainer._id.toString()),
       name: name.trim(),
       exercises,
       createdAt: new Date(),
     };
+    if (clientId && ObjectId.isValid(clientId)) {
+      doc.clientId = new ObjectId(clientId);
+    }
 
     const result = await db.collection("exercise-sets").insertOne(doc as any);
     const created = await db.collection("exercise-sets").findOne({ _id: result.insertedId });
@@ -83,10 +99,11 @@ export async function PATCH(req: NextRequest) {
     const trainer = await requireTrainer();
 
     const body = await req.json();
-    const { setId, name, exercises } = body as {
+    const { setId, name, exercises, clientId } = body as {
       setId: string;
       name?: string;
       exercises?: { name: string; defaultSets: number; defaultReps: number; defaultWeight?: number }[];
+      clientId?: string;
     };
 
     if (!setId || !ObjectId.isValid(setId)) {
@@ -105,6 +122,17 @@ export async function PATCH(req: NextRequest) {
     const update: any = {};
     if (name !== undefined) update.name = name.trim();
     if (exercises !== undefined) update.exercises = exercises;
+    if (clientId !== undefined) {
+      if (clientId && ObjectId.isValid(clientId)) {
+        update.clientId = new ObjectId(clientId);
+      } else {
+        // empty string = clear the client assignment (global set)
+        await db.collection("exercise-sets").updateOne(
+          { _id: new ObjectId(setId) },
+          { $unset: { clientId: "" } }
+        );
+      }
+    }
 
     await db
       .collection("exercise-sets")

@@ -20,7 +20,8 @@ import {
   Trash2,
   X,
   AlertCircle,
-  Plus
+  Plus,
+  ShoppingBag,
 } from "lucide-react";
 
 type Trainer = {
@@ -29,6 +30,8 @@ type Trainer = {
   type?: "personal" | "studio";
   maxClients: number;
   expirationDate?: string | null;
+  storeLink?: string;
+  storeMessage?: string;
 };
 
 type ExerciseSetExercise = {
@@ -469,6 +472,27 @@ export function ClientView({
           </div>
         </CardHeader>
       </Card>
+
+      {/* Store / Promo banner */}
+      {trainer && (trainer.storeLink || trainer.storeMessage) && (
+        <div className="flex items-center gap-3 px-4 py-3 rounded-lg border bg-muted/40 text-sm">
+          <ShoppingBag className="size-4 shrink-0 text-muted-foreground" />
+          <div className="flex-1 min-w-0">
+            {trainer.storeMessage && trainer.storeLink ? (
+              <a
+                href={trainer.storeLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-foreground/80 leading-snug hover:text-primary hover:underline transition-colors"
+              >
+                {trainer.storeMessage}
+              </a>
+            ) : trainer.storeMessage ? (
+              <p className="text-foreground/80 leading-snug">{trainer.storeMessage}</p>
+            ) : null}
+          </div>
+        </div>
+      )}
 
       {/* Tab Navigation */}
       <div className="overflow-x-auto -mx-4 px-4">

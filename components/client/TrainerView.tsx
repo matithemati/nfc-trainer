@@ -10,14 +10,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { getMessages } from "@/lib/i18n";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { WeightChart, DimensionsChart } from "./Charts";
 import { TrainerMenuBar } from "./TrainerMenuBar";
 import { MembershipStatus } from "./MembershipStatus";
-import { 
-  Plus, 
-  Trash2, 
-  Pencil, 
-  ChevronDown, 
+import {
+  Plus,
+  Trash2,
+  Pencil,
+  ChevronDown,
   ChevronUp,
   Check,
   X,
@@ -27,7 +28,12 @@ import {
   Save,
   Search,
   AlertCircle,
-  Mail
+  Mail,
+  ShoppingBag,
+  User,
+  Users,
+  Dumbbell,
+  Info
 } from "lucide-react";
 
 type Trainer = {
@@ -36,7 +42,9 @@ type Trainer = {
   email: string;
   type?: "personal" | "studio";
   maxClients: number;
-  expirationDate?: string | null; // ISO date string
+  expirationDate?: string | null;
+  storeLink?: string;
+  storeMessage?: string;
 };
 
 type ExerciseSetExercise = {
@@ -48,6 +56,7 @@ type ExerciseSetExercise = {
 
 type ExerciseSet = {
   _id?: string;
+  clientId?: string;
   name: string;
   exercises: ExerciseSetExercise[];
 };
@@ -107,7 +116,6 @@ export function TrainerView({
     exercise: WorkoutExercise;
   } | null>(null);
   const [expandedDays, setExpandedDays] = useState<Set<string>>(new Set());
-  const [expandedClientDetails, setExpandedClientDetails] = useState<Set<string>>(new Set());
   const [workoutHistoryMonth, setWorkoutHistoryMonth] = useState(new Date().getMonth());
   const [workoutHistoryYear, setWorkoutHistoryYear] = useState(new Date().getFullYear());
   const [exerciseNames, setExerciseNames] = useState<string[]>([]);
@@ -140,18 +148,37 @@ export function TrainerView({
   const [editingSet, setEditingSet] = useState<(ExerciseSet & { _id: string }) | null>(null);
   const [editingSetExercise, setEditingSetExercise] = useState<ExerciseSetExercise>({ name: "", defaultSets: 3, defaultReps: 10, defaultWeight: undefined });
   const [selectedExerciseSetId, setSelectedExerciseSetId] = useState("");
+  const [newSetClientId, setNewSetClientId] = useState("");
+  const [showAddClient, setShowAddClient] = useState(false);
+  const [newClientName, setNewClientName] = useState("");
+  const [renamingClientId, setRenamingClientId] = useState<string | null>(null);
+  const [renameClientName, setRenameClientName] = useState("");
+  const [storeLink, setStoreLink] = useState("");
+  const [storeMessage, setStoreMessage] = useState("");
+  const [storeSettingsSaved, setStoreSettingsSaved] = useState(false);
+  const [trainerTab, setTrainerTab] = useState<"clients" | "library" | "account">("clients");
+
+  const updateWorkoutExercise = (index: number, field: keyof WorkoutExercise, value: number | undefined) => {
+    setWorkoutExercises(prev => prev.map((ex, idx) => idx === index ? { ...ex, [field]: value } : ex));
+  };
+
+  const updateEditingWorkoutExercise = (index: number, field: keyof WorkoutExercise, value: number | undefined) => {
+    setEditingWorkout(prev => {
+      if (!prev) return prev;
+      return { ...prev, exercises: prev.exercises.map((ex, idx) => idx === index ? { ...ex, [field]: value } : ex) };
+    });
+  };
 
   const load = async () => {
     try {
       const res = await fetch(`/api/trainer/clients`);
-      
-      // Check if response has content before parsing JSON
+
       const text = await res.text();
       if (!text) {
         setError("Empty response from server");
         return;
       }
-      
+
       let data;
       try {
         data = JSON.parse(text);
@@ -160,11 +187,13 @@ export function TrainerView({
         console.error("JSON parse error:", parseError, "Response:", text);
         return;
       }
-      
+
       if (res.ok) {
         setTrainer(data.trainer);
         setClients(data.clients);
         setExerciseNames((data.trainer as any).exerciseNames || []);
+        setStoreLink(data.trainer.storeLink || "");
+        setStoreMessage(data.trainer.storeMessage || "");
       } else {
         if (res.status === 401) {
           window.location.href = `/${lang}/auth/signin`;
@@ -255,13 +284,14 @@ export function TrainerView({
       const res = await fetch("/api/trainer/exercise-sets", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: newSetName.trim(), exercises: newSetExercises }),
+        body: JSON.stringify({ name: newSetName.trim(), exercises: newSetExercises, clientId: newSetClientId }),
       });
       if (res.ok) {
         await loadExerciseSets();
         setShowAddSet(false);
         setNewSetName("");
         setNewSetExercises([]);
+        setNewSetClientId("");
         setNewSetExercise({ name: "", defaultSets: 3, defaultReps: 10, defaultWeight: undefined });
       }
     } catch (err) {
@@ -309,8 +339,9 @@ export function TrainerView({
     setWorkoutPlan(c.workoutPlan);
     setDietPlan(c.dietPlan);
     setClientActiveTab("workouts");
-    
-    // Load workout history for this client
+    setShowAddWorkout(false);
+    setEditingWorkout(null);
+
     try {
       const res = await fetch(`/api/clients/${c._id}/logs`);
       if (res.ok) {
@@ -320,8 +351,7 @@ export function TrainerView({
     } catch (err) {
       console.error("Failed to load workout logs:", err);
     }
-    
-    // Load weight data for this client
+
     try {
       const wRes = await fetch(`/api/clients/${c._id}/weights`);
       if (wRes.ok) {
@@ -332,7 +362,6 @@ export function TrainerView({
       console.error("Failed to load weights:", err);
     }
 
-    // Load dimensions for this client
     try {
       const dRes = await fetch(`/api/clients/${c._id}/dimensions`);
       if (dRes.ok) {
@@ -342,7 +371,7 @@ export function TrainerView({
     } catch (err) {
       console.error("Failed to load dimensions:", err);
     }
-    
+
     loadExerciseNames();
   };
 
@@ -378,11 +407,7 @@ export function TrainerView({
     if (!selectedClient) return;
     const res = await fetch(`/api/clients/${selectedClient._id}/logs`, {
       method: "PATCH",
-      body: JSON.stringify({
-        logId,
-        date,
-        exercises,
-      }),
+      body: JSON.stringify({ logId, date, exercises }),
       headers: { "Content-Type": "application/json" },
     });
     if (res.ok) {
@@ -408,9 +433,7 @@ export function TrainerView({
   const deleteExercise = async (logId: string, exerciseIndex: number) => {
     const log = workoutLogs.find((l) => l._id === logId);
     if (!log) return;
-    
     const newExercises = log.exercises.filter((_, idx) => idx !== exerciseIndex);
-    
     if (newExercises.length === 0) {
       deleteWorkout(logId);
     } else {
@@ -418,17 +441,11 @@ export function TrainerView({
     }
   };
 
-  const updateExercise = async (
-    logId: string,
-    exerciseIndex: number,
-    updatedExercise: WorkoutExercise
-  ) => {
+  const updateExercise = async (logId: string, exerciseIndex: number, updatedExercise: WorkoutExercise) => {
     const log = workoutLogs.find((l) => l._id === logId);
     if (!log) return;
-    
     const newExercises = [...log.exercises];
     newExercises[exerciseIndex] = updatedExercise;
-    
     await updateWorkout(logId, log.date, newExercises);
     setEditingExercise(null);
   };
@@ -437,9 +454,7 @@ export function TrainerView({
     const grouped: { [key: string]: WorkoutLog[] } = {};
     logs.forEach((log) => {
       const dateKey = log.date;
-      if (!grouped[dateKey]) {
-        grouped[dateKey] = [];
-      }
+      if (!grouped[dateKey]) grouped[dateKey] = [];
       grouped[dateKey].push(log);
     });
     return grouped;
@@ -473,10 +488,7 @@ export function TrainerView({
     try {
       const res = await fetch(`/api/clients/${selectedClient._id}/logs`, {
         method: "POST",
-        body: JSON.stringify({
-          date: workoutDate,
-          exercises: workoutExercises,
-        }),
+        body: JSON.stringify({ date: workoutDate, exercises: workoutExercises }),
         headers: { "Content-Type": "application/json" },
       });
       if (res.ok) {
@@ -484,7 +496,7 @@ export function TrainerView({
         setWorkoutLogs((prev) => [...prev, newLog]);
         setShowAddWorkout(false);
         setWorkoutExercises([]);
-        setNewExercise({ name: "", sets: 3, reps: 10 });
+        setNewExercise({ name: "", sets: 3, reps: 10, weight: undefined });
         setSelectedExerciseSetId("");
       }
     } catch (err) {
@@ -493,11 +505,7 @@ export function TrainerView({
   };
 
   const startEditingWorkout = (log: WorkoutLog) => {
-    setEditingWorkout({
-      logId: log._id!,
-      date: log.date,
-      exercises: [...log.exercises],
-    });
+    setEditingWorkout({ logId: log._id!, date: log.date, exercises: [...log.exercises] });
   };
 
   const cancelEditingWorkout = () => {
@@ -506,10 +514,7 @@ export function TrainerView({
 
   const addExerciseToEditingWorkout = () => {
     if (!editingWorkout || !newExercise.name) return;
-    setEditingWorkout({
-      ...editingWorkout,
-      exercises: [...editingWorkout.exercises, { ...newExercise }],
-    });
+    setEditingWorkout({ ...editingWorkout, exercises: [...editingWorkout.exercises, { ...newExercise }] });
     setNewExercise({ name: "", sets: 3, reps: 10, weight: undefined });
   };
 
@@ -528,26 +533,78 @@ export function TrainerView({
     setEditingWorkout(null);
   };
 
+  const createClient = async () => {
+    if (!newClientName.trim()) return;
+    try {
+      const res = await fetch("/api/trainer/clients", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newClientName.trim() }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setClients((prev) => [...prev, data]);
+        setNewClientName("");
+        setShowAddClient(false);
+      } else {
+        setError(data.error || t("failedToLoadTrainer"));
+      }
+    } catch (err) {
+      console.error("Failed to create client:", err);
+    }
+  };
+
+  const renameClient = async (clientId: string, name: string) => {
+    if (!name.trim()) return;
+    try {
+      const res = await fetch(`/api/clients/${clientId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: name.trim() }),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setClients((prev) => prev.map((c) => (c._id === clientId ? { ...c, name: updated.name } : c)));
+        if (selectedClient?._id === clientId) setSelectedClient((prev) => prev ? { ...prev, name: updated.name } : prev);
+        setRenamingClientId(null);
+        setRenameClientName("");
+      }
+    } catch (err) {
+      console.error("Failed to rename client:", err);
+    }
+  };
+
+  const saveStoreSettings = async () => {
+    try {
+      const res = await fetch("/api/trainer/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ storeLink, storeMessage }),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setTrainer((prev) => prev ? { ...prev, storeLink: updated.storeLink, storeMessage: updated.storeMessage } : prev);
+        setStoreSettingsSaved(true);
+        setTimeout(() => setStoreSettingsSaved(false), 2000);
+      }
+    } catch (err) {
+      console.error("Failed to save store settings:", err);
+    }
+  };
+
   const handleLogout = async () => {
     try {
-      // Clear any cached data
       setTrainer(null);
       setClients([]);
-      
-      // Use NextAuth signOut which properly clears the session
-      await nextAuthSignOut({ 
-        redirect: true,
-        callbackUrl: `/${lang}/auth/signin`
-      });
+      await nextAuthSignOut({ redirect: true, callbackUrl: `/${lang}/auth/signin` });
     } catch (error) {
       console.error("Logout error:", error);
-      // Fallback: redirect manually
       window.location.replace(`/${lang}/auth/signin`);
     }
   };
 
   if (!trainer && !error) return <div>{t("loading")}</div>;
-  
+
   if (error && !trainer) {
     return (
       <Alert variant="destructive">
@@ -558,50 +615,27 @@ export function TrainerView({
 
   if (!trainer) return null;
 
-  // Check if membership is active
-  const expirationDate = trainer.expirationDate 
-    ? new Date(trainer.expirationDate)
-    : null;
-  
-  const isExpired = expirationDate 
-    ? expirationDate < new Date()
-    : false;
-  
-  // Membership is active if expirationDate is null (no expiration) or in the future
+  const expirationDate = trainer.expirationDate ? new Date(trainer.expirationDate) : null;
+  const isExpired = expirationDate ? expirationDate < new Date() : false;
   const isMembershipActive = !expirationDate || !isExpired;
 
-  // If membership is not active, show blocking message
   if (!isMembershipActive) {
     return (
       <div className="space-y-4">
-        <TrainerMenuBar
-          trainer={trainer}
-          clientsCount={clients.length}
-          lang={lang}
-          onLogout={handleLogout}
-        />
-        
+        <TrainerMenuBar trainer={trainer} clientsCount={clients.length} lang={lang} onLogout={handleLogout} />
         <Card className="w-full border-2 border-destructive/20">
           <CardContent className="pt-8 pb-8">
             <div className="flex flex-col items-center justify-center text-center space-y-6 max-w-2xl mx-auto">
               <div className="rounded-full bg-destructive/10 p-4">
                 <AlertCircle className="size-12 text-destructive" />
               </div>
-              
               <div className="space-y-3">
-                <h2 className="text-2xl font-bold text-foreground">
-                  {t("membershipInactive")}
-                </h2>
-                <p className="text-muted-foreground text-base leading-relaxed">
-                  {t("contactAdminMessage")}
-                </p>
+                <h2 className="text-2xl font-bold text-foreground">{t("membershipInactive")}</h2>
+                <p className="text-muted-foreground text-base leading-relaxed">{t("contactAdminMessage")}</p>
               </div>
-              
               <div className="flex items-center gap-2 px-4 py-3 bg-muted/50 rounded-lg border border-border">
                 <Mail className="size-5 text-muted-foreground" />
-                <span className="text-sm font-medium text-foreground">
-                  {t("contactAdmin")}
-                </span>
+                <span className="text-sm font-medium text-foreground">{t("contactAdmin")}</span>
               </div>
             </div>
           </CardContent>
@@ -612,1080 +646,690 @@ export function TrainerView({
 
   return (
     <div className="space-y-4">
-      <TrainerMenuBar
-        trainer={trainer}
-        clientsCount={clients.length}
-        lang={lang}
-        onLogout={handleLogout}
-      />
-      
+      <TrainerMenuBar trainer={trainer} clientsCount={clients.length} lang={lang} onLogout={handleLogout} />
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <MembershipStatus
-          trainer={trainer}
-          clientsCount={clients.length}
-          lang={lang}
-        />
-        <Card className="w-full">
-          <CardHeader>
-            <CardTitle>{t("exerciseNames")}</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex gap-2">
-              <Input
-                value={newExerciseName}
-                onChange={(e) => setNewExerciseName(e.target.value)}
-                placeholder={t("exerciseNamePlaceholder")}
-                className="flex-1"
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    addExerciseName();
-                  }
-                }}
-              />
-              <Button onClick={addExerciseName}>
-                <Plus className="size-4" />
-                {t("add")}
-              </Button>
-            </div>
-            {exerciseNames.length > 0 && (
-              <>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground size-4" />
-                  <Input
-                    value={exerciseSearchTerm}
-                    onChange={(e) => setExerciseSearchTerm(e.target.value)}
-                    placeholder={t("search")}
-                    className="pl-9"
-                  />
-                </div>
-                <div className="space-y-2 h-[140px] overflow-y-auto">
-                  {exerciseNames
-                    .filter((name) =>
-                      name.toLowerCase().includes(exerciseSearchTerm.toLowerCase())
-                    )
-                    .map((name) => (
-                      <div key={name} className="flex items-center justify-between p-2 border rounded">
-                        <span className="text-sm">{name}</span>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => deleteExerciseName(name)}
-                          title={t("delete")}
-                        >
-                          <Trash2 className="size-4" />
-                        </Button>
-                      </div>
-                    ))}
-                </div>
-              </>
+      {/* Top-level tabs */}
+      <div className="overflow-x-auto w-full">
+      <div className="flex items-center gap-1 p-1 bg-muted rounded-lg w-fit">
+        {(["clients", "library", "account"] as const).map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setTrainerTab(tab)}
+            className={`flex items-center gap-1.5 px-4 py-1.5 text-sm font-medium rounded-md transition-colors whitespace-nowrap ${
+              trainerTab === tab ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {tab === "clients" ? (
+              <><Users className="size-3.5" /><span className="ml-1">{t("clients")}</span></>
+            ) : tab === "library" ? (
+              <><Dumbbell className="size-3.5" /><span className="ml-1">{t("exercisesTab")}</span></>
+            ) : (
+              <><User className="size-3.5" /><span className="ml-1">{t("account")}</span></>
             )}
-            {exerciseNames.length === 0 && (
-              <p className="text-muted-foreground text-sm">{t("noExerciseNames")}</p>
-            )}
-          </CardContent>
-        </Card>
+          </button>
+        ))}
+      </div>
       </div>
 
-      {trainer.type === "personal" && (
-        <Card className="w-full">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle>{t("exerciseSets")}</CardTitle>
-              {!showAddSet && !editingSet && (
-                <Button size="sm" onClick={() => setShowAddSet(true)}>
-                  <Plus className="size-4" />
-                  {t("addSet")}
-                </Button>
-              )}
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {showAddSet && (
-              <div className="space-y-3 p-3 border rounded-lg">
-                <div>
-                  <Label className="text-sm font-semibold">{t("newExerciseSet")}</Label>
+      {/* TAB: Clients */}
+      {trainerTab === "clients" && (
+        <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-4 items-start">
+          {/* Left: Client Roster */}
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm font-semibold">
+                  {t("clients")} <span className="text-muted-foreground font-normal">({clients.length}/{trainer.maxClients})</span>
+                </CardTitle>
+                {clients.length < trainer.maxClients && !showAddClient && (
+                  <Button size="sm" variant="outline" className="h-7 w-7 p-0" onClick={() => setShowAddClient(true)}>
+                    <Plus className="size-3.5" />
+                  </Button>
+                )}
+              </div>
+              {showAddClient && (
+                <div className="flex gap-1.5 mt-2">
                   <Input
-                    value={newSetName}
-                    onChange={(e) => setNewSetName(e.target.value)}
-                    placeholder={t("exerciseSetNamePlaceholder")}
-                    className="mt-1"
+                    value={newClientName}
+                    onChange={(e) => setNewClientName(e.target.value)}
+                    placeholder={t("clientNamePlaceholder")}
+                    className="flex-1 h-8 text-sm"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") createClient();
+                      if (e.key === "Escape") { setShowAddClient(false); setNewClientName(""); }
+                    }}
+                    autoFocus
                   />
+                  <Button size="sm" className="h-8 px-2" disabled={!newClientName.trim()} onClick={createClient}><Check className="size-3.5" /></Button>
+                  <Button size="sm" variant="outline" className="h-8 px-2" onClick={() => { setShowAddClient(false); setNewClientName(""); }}><X className="size-3.5" /></Button>
                 </div>
-                {newSetExercises.length > 0 && (
-                  <div className="space-y-1 max-h-[150px] overflow-y-auto">
-                    {newSetExercises.map((ex, idx) => (
-                      <div key={idx} className="flex items-center justify-between p-2 border rounded text-sm">
-                        <span>{ex.name} — {ex.defaultSets}×{ex.defaultReps}{ex.defaultWeight ? ` @ ${ex.defaultWeight}${t("weightUnit")}` : ""}</span>
-                        <Button variant="ghost" size="sm" onClick={() => setNewSetExercises((prev) => prev.filter((_, i) => i !== idx))}>
-                          <Trash2 className="size-4" />
-                        </Button>
-                      </div>
+              )}
+              {clients.length > 0 && (
+                <div className="relative mt-2">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground size-3.5" />
+                  <Input value={clientSearchTerm} onChange={(e) => setClientSearchTerm(e.target.value)} placeholder={t("searchClients")} className="pl-8 h-8 text-sm" />
+                </div>
+              )}
+            </CardHeader>
+            <CardContent className="pt-0 space-y-0.5 max-h-[60vh] overflow-y-auto">
+              {clients.length === 0 ? (
+                <p className="text-muted-foreground text-sm py-4 text-center">{t("noClientsYet")}</p>
+              ) : (
+                clients
+                  .filter((c) => !clientSearchTerm || c.name.toLowerCase().includes(clientSearchTerm.toLowerCase()))
+                  .map((c) => (
+                    <div
+                      key={c._id}
+                      className={`group flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer transition-colors ${
+                        selectedClient?._id === c._id ? "bg-muted" : "hover:bg-muted/50"
+                      }`}
+                      onClick={() => selectClient(c)}
+                    >
+                      {renamingClientId === c._id ? (
+                        <div className="flex-1 flex gap-1 items-center" onClick={(e) => e.stopPropagation()}>
+                          <Input
+                            value={renameClientName}
+                            onChange={(e) => setRenameClientName(e.target.value)}
+                            className="h-7 text-sm flex-1"
+                            autoFocus
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") renameClient(c._id, renameClientName);
+                              if (e.key === "Escape") { setRenamingClientId(null); setRenameClientName(""); }
+                            }}
+                          />
+                          <Button size="sm" variant="ghost" className="h-7 px-1.5" onClick={() => renameClient(c._id, renameClientName)}><Check className="size-3" /></Button>
+                          <Button size="sm" variant="ghost" className="h-7 px-1.5" onClick={() => { setRenamingClientId(null); setRenameClientName(""); }}><X className="size-3" /></Button>
+                        </div>
+                      ) : (
+                        <>
+                          <span className="flex-1 text-sm font-medium truncate">{c.name}</span>
+                          <button
+                            className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-muted rounded"
+                            onClick={(e) => { e.stopPropagation(); setRenamingClientId(c._id); setRenameClientName(c.name); }}
+                            title={t("renameClient")}
+                          >
+                            <Pencil className="size-3 text-muted-foreground" />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  ))
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Right: Client Workspace */}
+          {!selectedClient ? (
+            <div className="flex items-center justify-center h-48 rounded-lg border-2 border-dashed border-muted">
+              <p className="text-muted-foreground text-sm">{t("selectClientToStart")}</p>
+            </div>
+          ) : (
+            <Card>
+              <CardHeader className="pb-3">
+                <div>
+                  <CardTitle>{selectedClient.name}</CardTitle>
+                  <a
+                    href={`/${lang}/c/${selectedClient._id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-muted-foreground font-mono hover:underline hover:text-foreground transition-colors"
+                  >
+                    {t("nfcId")}: {selectedClient._id}
+                  </a>
+                </div>
+                <div className="overflow-x-auto -mx-2 px-2 pt-2">
+                  <div className="flex gap-1 p-1 bg-muted rounded-lg min-w-max">
+                    {(["workouts", "history", "progress", "plans"] as const).map((tab) => (
+                      <button
+                        key={tab}
+                        onClick={() => setClientActiveTab(tab)}
+                        className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors whitespace-nowrap ${
+                          clientActiveTab === tab ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        {tab === "workouts" ? t("addWorkout") : tab === "history" ? t("workoutHistory") : tab === "progress" ? t("progress") : `${t("workoutsPlan")} & ${t("dietPlan")}`}
+                      </button>
                     ))}
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {/* WORKOUTS TAB */}
+                {clientActiveTab === "workouts" && (
+                  <div className="space-y-4">
+                    {!showAddWorkout && (
+                      <Button variant="outline" onClick={() => {
+                        setShowAddWorkout(true);
+                        setWorkoutDate(new Date().toISOString().split("T")[0]);
+                        setWorkoutExercises([]);
+                        setNewExercise({ name: "", sets: 3, reps: 10, weight: undefined });
+                        loadExerciseNames();
+                      }} className="w-full">
+                        <Plus className="size-4" />
+                        {t("addWorkout")}
+                      </Button>
+                    )}
+                    {showAddWorkout && (
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-3">
+                          <Label className="text-sm shrink-0">{t("date")}</Label>
+                          <Input type="date" value={workoutDate} onChange={(e) => setWorkoutDate(e.target.value)} className="w-auto" />
+                        </div>
+
+                        {trainer.type === "personal" && (() => {
+                          const clientSets = exerciseSets.filter((s) => !s.clientId || s.clientId === selectedClient._id);
+                          return clientSets.length > 0 ? (
+                            <div className="flex items-center gap-3">
+                              <Label className="text-sm shrink-0">{t("loadFromExerciseSet")}</Label>
+                              <select
+                                value={selectedExerciseSetId}
+                                onChange={(e) => {
+                                  setSelectedExerciseSetId(e.target.value);
+                                  if (e.target.value) {
+                                    const set = clientSets.find((s) => s._id === e.target.value);
+                                    if (set) {
+                                      setWorkoutExercises(set.exercises.map((ex) => ({
+                                        name: ex.name, sets: ex.defaultSets, reps: ex.defaultReps, weight: ex.defaultWeight,
+                                      })));
+                                    }
+                                  }
+                                }}
+                                className="flex-1 px-3 py-2 border rounded-md bg-background text-foreground text-sm"
+                              >
+                                <option value="">{t("selectExerciseSet")}</option>
+                                {clientSets.map((s) => (<option key={s._id} value={s._id}>{s.name}</option>))}
+                              </select>
+                            </div>
+                          ) : null;
+                        })()}
+
+                        {/* Editable exercise table */}
+                        {workoutExercises.length > 0 && (
+                          <div className="overflow-x-auto">
+                          <div className="space-y-1 min-w-[340px]">
+                            <div className="grid grid-cols-[1fr_60px_60px_72px_32px] gap-1.5 px-2 text-xs text-muted-foreground font-medium">
+                              <span>{t("exerciseName")}</span>
+                              <span className="text-center">{t("sets")}</span>
+                              <span className="text-center">{t("reps")}</span>
+                              <span className="text-center">{t("weightUnit")}</span>
+                              <span />
+                            </div>
+                            {workoutExercises.map((ex, idx) => (
+                              <div key={idx} className="grid grid-cols-[1fr_60px_60px_72px_32px] gap-1.5 items-center">
+                                <span className="text-sm px-2 truncate">{ex.name}</span>
+                                <Input type="number" value={ex.sets} min={1} onChange={(e) => updateWorkoutExercise(idx, "sets", Number(e.target.value))} className="h-8 text-center px-1 text-sm" />
+                                <Input type="number" value={ex.reps} min={1} onChange={(e) => updateWorkoutExercise(idx, "reps", Number(e.target.value))} className="h-8 text-center px-1 text-sm" />
+                                <Input type="number" step="0.5" value={ex.weight ?? ""} onChange={(e) => updateWorkoutExercise(idx, "weight", e.target.value ? Number(e.target.value) : undefined)} placeholder="—" className="h-8 text-center px-1 text-sm" />
+                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => removeExerciseFromWorkout(idx)}><Trash2 className="size-3.5" /></Button>
+                              </div>
+                            ))}
+                          </div>
+                          </div>
+                        )}
+
+                        {/* Add exercise */}
+                        <div className="border-t pt-3 space-y-2">
+                          <Label className="text-sm font-semibold">{t("addExercise")}</Label>
+                          <select value={newExercise.name} onChange={(e) => setNewExercise((ex) => ({ ...ex, name: e.target.value }))} className="w-full px-3 py-2 border rounded-md bg-background text-foreground text-sm">
+                            <option value="">{t("selectExercise")}</option>
+                            {exerciseNames.map((name) => (<option key={name} value={name}>{name}</option>))}
+                          </select>
+                          {exerciseNames.length === 0 && <p className="text-xs text-muted-foreground">{t("noExerciseNamesHint")}</p>}
+                          <div className="grid grid-cols-3 gap-2">
+                            <div><Label className="text-xs">{t("sets")}</Label><Input type="number" value={newExercise.sets} onChange={(e) => setNewExercise((ex) => ({ ...ex, sets: Number(e.target.value) }))} className="mt-1 h-8" /></div>
+                            <div><Label className="text-xs">{t("reps")}</Label><Input type="number" value={newExercise.reps} onChange={(e) => setNewExercise((ex) => ({ ...ex, reps: Number(e.target.value) }))} className="mt-1 h-8" /></div>
+                            <div><Label className="text-xs">{t("weight")} <span className="text-muted-foreground">({t("optional")})</span></Label><Input type="number" step="0.5" value={newExercise.weight ?? ""} onChange={(e) => setNewExercise((ex) => ({ ...ex, weight: e.target.value ? Number(e.target.value) : undefined }))} className="mt-1 h-8" /></div>
+                          </div>
+                          <Button onClick={addExerciseToWorkout} variant="outline" className="w-full" disabled={!newExercise.name}>
+                            <Plus className="size-4" />{t("addExercise")}
+                          </Button>
+                        </div>
+
+                        <div className="flex gap-2">
+                          <Button onClick={addWorkout} className="flex-1" disabled={workoutExercises.length === 0}>
+                            <Save className="size-4" />{t("saveWorkout")}
+                          </Button>
+                          <Button variant="outline" onClick={() => { setShowAddWorkout(false); setWorkoutExercises([]); setNewExercise({ name: "", sets: 3, reps: 10, weight: undefined }); setSelectedExerciseSetId(""); }}>
+                            <X className="size-4" />{t("cancel")}
+                          </Button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
-                <div className="border-t pt-2 space-y-2">
-                  <Label className="text-xs text-muted-foreground">{t("addExerciseToSet")}</Label>
-                  <select
-                    value={newSetExercise.name}
-                    onChange={(e) => setNewSetExercise((ex) => ({ ...ex, name: e.target.value }))}
-                    className="w-full px-3 py-2 border rounded-md bg-background"
-                  >
-                    <option value="">{t("selectExercise")}</option>
-                    {exerciseNames.map((name) => (
-                      <option key={name} value={name}>{name}</option>
-                    ))}
-                  </select>
-                  <div className="grid grid-cols-3 gap-2">
-                    <Input type="number" value={newSetExercise.defaultSets} onChange={(e) => setNewSetExercise((ex) => ({ ...ex, defaultSets: Number(e.target.value) }))} placeholder={t("sets")} />
-                    <Input type="number" value={newSetExercise.defaultReps} onChange={(e) => setNewSetExercise((ex) => ({ ...ex, defaultReps: Number(e.target.value) }))} placeholder={t("reps")} />
-                    <Input type="number" step="0.1" value={newSetExercise.defaultWeight || ""} onChange={(e) => setNewSetExercise((ex) => ({ ...ex, defaultWeight: e.target.value ? Number(e.target.value) : undefined }))} placeholder={`${t("weightUnit")} (${t("optional")})`} />
-                  </div>
-                  <Button size="sm" variant="outline" className="w-full" disabled={!newSetExercise.name.trim()} onClick={() => {
-                    if (!newSetExercise.name.trim()) return;
-                    setNewSetExercises((prev) => [...prev, { ...newSetExercise }]);
-                    setNewSetExercise({ name: "", defaultSets: 3, defaultReps: 10, defaultWeight: undefined });
-                  }}>
-                    <Plus className="size-4" /> {t("addExercise")}
-                  </Button>
-                </div>
-                <div className="flex gap-2">
-                  <Button size="sm" className="flex-1" disabled={!newSetName.trim() || newSetExercises.length === 0} onClick={createExerciseSet}>
-                    <Save className="size-4" /> {t("saveSet")}
-                  </Button>
-                  <Button size="sm" variant="outline" onClick={() => { setShowAddSet(false); setNewSetName(""); setNewSetExercises([]); setNewSetExercise({ name: "", defaultSets: 3, defaultReps: 10, defaultWeight: undefined }); }}>
-                    <X className="size-4" /> {t("cancel")}
-                  </Button>
-                </div>
-              </div>
-            )}
-            {!showAddSet && exerciseSets.length === 0 && (
-              <p className="text-muted-foreground text-sm">{t("noExerciseSets")}</p>
-            )}
-            <div className="space-y-2 max-h-[220px] overflow-y-auto">
-              {exerciseSets.map((set) => (
-                <div key={set._id} className="border rounded-lg">
-                  {editingSet?._id === set._id && editingSet ? (
-                    <div className="p-3 space-y-2">
-                      <Input value={editingSet.name} onChange={(e) => { const s = editingSet; if (s) setEditingSet({ ...s, name: e.target.value }); }} />
-                      <div className="space-y-1 max-h-[150px] overflow-y-auto">
-                        {editingSet.exercises.map((ex, idx) => (
-                          <div key={idx} className="flex items-center justify-between p-1 border rounded text-sm">
-                            <span>{ex.name} — {ex.defaultSets}×{ex.defaultReps}{ex.defaultWeight ? ` @ ${ex.defaultWeight}${t("weightUnit")}` : ""}</span>
-                            <Button variant="ghost" size="sm" onClick={() => { const s = editingSet; if (s) setEditingSet({ ...s, exercises: s.exercises.filter((_, i) => i !== idx) }); }}>
-                              <Trash2 className="size-3" />
-                            </Button>
-                          </div>
-                        ))}
-                      </div>
-                      <div className="border-t pt-2 space-y-2">
-                        <Label className="text-xs text-muted-foreground">{t("addExercise")}</Label>
-                        <select
-                          value={editingSetExercise.name}
-                          onChange={(e) => setEditingSetExercise((ex) => ({ ...ex, name: e.target.value }))}
-                          className="w-full px-3 py-2 border rounded-md bg-background"
-                        >
-                          <option value="">{t("selectExercise")}</option>
-                          {exerciseNames.map((name) => (
-                            <option key={name} value={name}>{name}</option>
-                          ))}
-                        </select>
-                        <div className="grid grid-cols-3 gap-2">
-                          <Input type="number" value={editingSetExercise.defaultSets} onChange={(e) => setEditingSetExercise((ex) => ({ ...ex, defaultSets: Number(e.target.value) }))} placeholder={t("sets")} />
-                          <Input type="number" value={editingSetExercise.defaultReps} onChange={(e) => setEditingSetExercise((ex) => ({ ...ex, defaultReps: Number(e.target.value) }))} placeholder={t("reps")} />
-                          <Input type="number" step="0.1" value={editingSetExercise.defaultWeight || ""} onChange={(e) => setEditingSetExercise((ex) => ({ ...ex, defaultWeight: e.target.value ? Number(e.target.value) : undefined }))} placeholder={t("weightUnit")} />
-                        </div>
-                        <Button size="sm" variant="outline" className="w-full" disabled={!editingSetExercise.name.trim()} onClick={() => {
-                          if (!editingSetExercise.name.trim() || !editingSet) return;
-                          const s = editingSet;
-                          setEditingSet({ ...s, exercises: [...s.exercises, { ...editingSetExercise }] });
-                          setEditingSetExercise({ name: "", defaultSets: 3, defaultReps: 10, defaultWeight: undefined });
-                        }}>
-                          <Plus className="size-4" /> {t("addExercise")}
-                        </Button>
-                      </div>
-                      <div className="flex gap-2">
-                        <Button size="sm" className="flex-1" onClick={saveEditedSet}><Save className="size-4" /> {t("save")}</Button>
-                        <Button size="sm" variant="outline" onClick={() => setEditingSet(null)}><X className="size-4" /> {t("cancel")}</Button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex items-center justify-between p-3">
-                      <div>
-                        <div className="font-medium text-sm">{set.name}</div>
-                        <div className="text-xs text-muted-foreground">{set.exercises.length} {set.exercises.length !== 1 ? t("exercises") : t("exercise")}</div>
-                      </div>
-                      <div className="flex gap-1">
-                        <Button variant="ghost" size="sm" onClick={() => { setEditingSet(set as ExerciseSet & { _id: string }); setEditingSetExercise({ name: "", defaultSets: 3, defaultReps: 10, defaultWeight: undefined }); }}>
-                          <Pencil className="size-4" />
-                        </Button>
-                        <Button variant="ghost" size="sm" onClick={() => deleteExerciseSet(set._id!)}>
-                          <Trash2 className="size-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>{t("clients")} ({clients.length})</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          {clients.length === 0 ? (
-            <p className="text-muted-foreground text-sm">{t("noClientsYet")}</p>
-          ) : (
-            <>
-              <div className="relative mb-4">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground size-4" />
-                <Input
-                  value={clientSearchTerm}
-                  onChange={(e) => setClientSearchTerm(e.target.value)}
-                  placeholder={t("searchClients")}
-                  className="pl-9"
-                />
-              </div>
-              <div className="h-[450px] overflow-y-auto space-y-4">
-                {(() => {
-                  const expandedClientId = Array.from(expandedClientDetails)[0];
-                  let clientsToShow = expandedClientId 
-                    ? clients.filter(c => c._id === expandedClientId)
-                    : clients;
-                  
-                  if (!expandedClientId && clientSearchTerm) {
-                    clientsToShow = clientsToShow.filter(c =>
-                      c.name.toLowerCase().includes(clientSearchTerm.toLowerCase()) ||
-                      c._id.toLowerCase().includes(clientSearchTerm.toLowerCase())
-                    );
-                  }
-                  
-                  if (clientsToShow.length === 0) {
-                    return (
-                      <p key="no-results" className="text-center text-muted-foreground text-sm py-8">
-                        {t("noResults")}
-                      </p>
-                    );
-                  }
-                  
-                  return clientsToShow.map((c) => {
-                    const isExpanded = expandedClientDetails.has(c._id);
-                    return (
-                      <div key={c._id} className="border rounded-lg">
-                        <div className="flex items-center justify-between p-3">
-                          <div className="flex-1 min-w-0">
-                            <div className="font-semibold">{c.name}</div>
-                            <a
-                              href={`/${lang}/c/${c._id}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="hidden md:inline text-xs text-slate-400 hover:text-foreground transition-colors font-mono hover:underline"
-                            >
-                              {t("nfcId")}: {c._id}
-                            </a>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="md:hidden mt-1 h-7 text-xs font-mono"
-                              onClick={() => {
-                                window.open(`/${lang}/c/${c._id}`, '_blank', 'noopener,noreferrer');
-                              }}
-                            >
-                              {t("nfcId")}
-                            </Button>
-                          </div>
-                          <div className="flex gap-2">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={async () => {
-                                if (isExpanded) {
-                                  const newExpanded = new Set(expandedClientDetails);
-                                  newExpanded.delete(c._id);
-                                  setExpandedClientDetails(newExpanded);
-                                  if (selectedClient?._id === c._id) {
-                                    setSelectedClient(null);
-                                  }
-                                } else {
-                                  setExpandedClientDetails(new Set([c._id]));
-                                  await selectClient(c);
-                                }
-                              }}
-                            >
-                              {isExpanded ? (
-                                <>
-                                  <ChevronLeft className="size-4" />
-                                  {t("back")}
-                                </>
-                              ) : (
-                                <>
-                                  <Pencil className="size-4" />
-                                  {t("edit")}
-                                </>
-                              )}
-                            </Button>
-                          </div>
-                        </div>
-                        {isExpanded && selectedClient?._id === c._id && (
-                          <div className="px-3 pb-3 pt-0 border-t">
-                            {/* Tab Navigation */}
-                            <div className="overflow-x-auto -mx-3 px-3">
-                              <div className="flex gap-2 border-b bg-card pt-3 min-w-max rounded-t-xl">
-                                <button
-                                  onClick={() => setClientActiveTab("workouts")}
-                                  className={`px-4 py-2 text-sm font-medium transition-colors whitespace-nowrap rounded-t-lg ${
-                                    clientActiveTab === "workouts"
-                                      ? "border-b-2 border-primary text-foreground font-semibold bg-muted/30"
-                                      : "text-foreground/70 hover:text-foreground hover:bg-muted/50"
-                                  }`}
-                                >
-                                  {t("addWorkout")}
-                                </button>
-                                <button
-                                  onClick={() => setClientActiveTab("history")}
-                                  className={`px-4 py-2 text-sm font-medium transition-colors whitespace-nowrap rounded-t-lg ${
-                                    clientActiveTab === "history"
-                                      ? "border-b-2 border-primary text-foreground font-semibold bg-muted/30"
-                                      : "text-foreground/70 hover:text-foreground hover:bg-muted/50"
-                                  }`}
-                                >
-                                  {t("workoutHistory")}
-                                </button>
-                                <button
-                                  onClick={() => setClientActiveTab("progress")}
-                                  className={`px-4 py-2 text-sm font-medium transition-colors whitespace-nowrap rounded-t-lg ${
-                                    clientActiveTab === "progress"
-                                      ? "border-b-2 border-primary text-foreground font-semibold bg-muted/30"
-                                      : "text-foreground/70 hover:text-foreground hover:bg-muted/50"
-                                  }`}
-                                >
-                                  {t("progress")}
-                                </button>
-                                <button
-                                  onClick={() => setClientActiveTab("plans")}
-                                  className={`px-4 py-2 text-sm font-medium transition-colors whitespace-nowrap rounded-t-lg ${
-                                    clientActiveTab === "plans"
-                                      ? "border-b-2 border-primary text-foreground font-semibold bg-muted/30"
-                                      : "text-foreground/70 hover:text-foreground hover:bg-muted/50"
-                                  }`}
-                                >
-                                  {t("workoutsPlan")} & {t("dietPlan")}
-                                </button>
-                              </div>
-                            </div>
-
-                            {/* Tab Content */}
-                            {clientActiveTab === "workouts" && (
-                              <div className="pt-3 space-y-3">
-                                {!showAddWorkout && (
-                                  <Button
-                                    variant="outline"
-                                    onClick={() => {
-                                      setShowAddWorkout(true);
-                                      setWorkoutDate(new Date().toISOString().split("T")[0]);
-        setWorkoutExercises([]);
-        setNewExercise({ name: "", sets: 3, reps: 10, weight: undefined });
-        loadExerciseNames();
-                                    }}
-                                    className="w-full"
-                                  >
-                                    <Plus className="size-4" />
-                                    {t("addWorkout")}
-                                  </Button>
-                                )}
-                                {showAddWorkout && (
-                                  <div className="space-y-3 p-3 border rounded-lg">
-                                    <div>
-                                      <Label className="text-sm">{t("date")}</Label>
-                                      <Input
-                                        type="date"
-                                        value={workoutDate}
-                                        onChange={(e) => setWorkoutDate(e.target.value)}
-                                        className="mt-1"
-                                      />
-                                    </div>
-                                    {trainer.type === "personal" && exerciseSets.length > 0 && (
-                                      <div>
-                                        <Label className="text-sm">Load from exercise set</Label>
-                                        <select
-                                          value={selectedExerciseSetId}
-                                          onChange={(e) => {
-                                            setSelectedExerciseSetId(e.target.value);
-                                            if (e.target.value) {
-                                              const set = exerciseSets.find((s) => s._id === e.target.value);
-                                              if (set) {
-                                                setWorkoutExercises(set.exercises.map((ex) => ({
-                                                  name: ex.name,
-                                                  sets: ex.defaultSets,
-                                                  reps: ex.defaultReps,
-                                                  weight: ex.defaultWeight,
-                                                })));
-                                              }
-                                            }
-                                          }}
-                                          className="w-full mt-1 px-3 py-2 border rounded-md"
-                                        >
-                                          <option value="">— select set to pre-fill —</option>
-                                          {exerciseSets.map((s) => (
-                                            <option key={s._id} value={s._id}>{s.name}</option>
-                                          ))}
-                                        </select>
+                {/* HISTORY TAB */}
+                {clientActiveTab === "history" && (
+                  <div className="space-y-3">
+                    {workoutLogs.length > 0 && (
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Button variant="outline" size="sm" onClick={() => navigateWorkoutMonth(-1)} title={t("previous")}>
+                          <ChevronLeft className="size-4 md:hidden" /><span className="hidden md:inline">{t("previous")}</span>
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={() => { const today = new Date(); setWorkoutHistoryMonth(today.getMonth()); setWorkoutHistoryYear(today.getFullYear()); }}>
+                          <Calendar className="size-4" /><span className="hidden md:inline ml-1">{t("today")}</span>
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={() => navigateWorkoutMonth(1)} title={t("next")}>
+                          <ChevronRight className="size-4 md:hidden" /><span className="hidden md:inline">{t("next")}</span>
+                        </Button>
+                        <span className="text-sm text-muted-foreground ml-auto">
+                          {new Date(workoutHistoryYear, workoutHistoryMonth, 1).toLocaleDateString(currentLang === "pl" ? "pl-PL" : "en-US", { month: "long", year: "numeric" })}
+                        </span>
+                      </div>
+                    )}
+                    {workoutLogs.length === 0 ? (
+                      <p className="text-muted-foreground text-sm">{t("noWorkoutHistory")}</p>
+                    ) : (
+                      (() => {
+                        const filteredLogs = filterLogsByMonth(workoutLogs, workoutHistoryMonth, workoutHistoryYear);
+                        const groupedLogs = groupLogsByDay(filteredLogs);
+                        if (Object.keys(groupedLogs).length === 0) {
+                          return (
+                            <p className="text-muted-foreground text-sm">
+                              {t("noWorkoutsForMonth")} {new Date(workoutHistoryYear, workoutHistoryMonth, 1).toLocaleDateString(lang === "pl" ? "pl-PL" : "en-US", { month: "long", year: "numeric" })}
+                            </p>
+                          );
+                        }
+                        return (
+                          <div className="space-y-3">
+                            {Object.entries(groupedLogs)
+                              .sort(([a], [b]) => new Date(b).getTime() - new Date(a).getTime())
+                              .map(([date, dayLogs]) => {
+                                const isExpanded = expandedDays.has(date);
+                                const totalExercises = dayLogs.reduce((sum, log) => sum + (log.exercises?.length || 0), 0);
+                                return (
+                                  <div key={date} className="space-y-3">
+                                    <div className="flex items-center justify-between border-b pb-2">
+                                      <div className="font-semibold text-sm">
+                                        {new Date(date).toLocaleDateString(currentLang === "pl" ? "pl-PL" : "en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
+                                        {" "}({dayLogs.length} {dayLogs.length !== 1 ? t("workouts") : t("workout")}, {totalExercises} {totalExercises !== 1 ? t("exercises") : t("exercise")})
                                       </div>
-                                    )}
-                                    
-                                    {workoutExercises.length > 0 && (
-                                      <div className="space-y-2">
-                                        <Label className="text-sm font-semibold">{t("exercises")}</Label>
-                                        {workoutExercises.map((ex, idx) => (
-                                          <div key={idx} className="flex items-center justify-between p-2 border rounded">
-                                            <span className="text-sm">
-                                              {ex.name} - {ex.sets} {t("setsLabel")} × {ex.reps} {t("repsLabel")}
-                                              {ex.weight && ` @ ${ex.weight} ${t("weightUnit")}`}
-                                            </span>
-                                            <Button
-                                              variant="ghost"
-                                              size="sm"
-                                              onClick={() => removeExerciseFromWorkout(idx)}
-                                              title={t("delete")}
-                                            >
-                                              <Trash2 className="size-4" />
-                                            </Button>
+                                      <Button variant="ghost" size="sm" onClick={() => {
+                                        const s = new Set(expandedDays);
+                                        if (isExpanded) s.delete(date); else s.add(date);
+                                        setExpandedDays(s);
+                                      }}>
+                                        {isExpanded ? <><ChevronUp className="size-4" />{t("collapse")}</> : <><ChevronDown className="size-4" />{t("expand")}</>}
+                                      </Button>
+                                    </div>
+                                    {isExpanded && (
+                                      <div className="space-y-3">
+                                        {dayLogs.map((log, logIdx) => (
+                                          <div key={log._id || logIdx} className="border rounded-lg p-4 space-y-2">
+                                            {editingWorkout?.logId === log._id && editingWorkout ? (
+                                              <div className="space-y-3">
+                                                <div className="flex items-center gap-3">
+                                                  <Label className="text-sm shrink-0">{t("date")}</Label>
+                                                  <Input type="date" value={editingWorkout.date} onChange={(e) => setEditingWorkout({ logId: editingWorkout.logId, date: e.target.value, exercises: editingWorkout.exercises })} className="w-auto" />
+                                                </div>
+                                                {editingWorkout.exercises.length > 0 && (
+                                                  <div className="overflow-x-auto">
+                                                  <div className="space-y-1 min-w-[340px]">
+                                                    <div className="grid grid-cols-[1fr_60px_60px_72px_32px] gap-1.5 px-2 text-xs text-muted-foreground font-medium">
+                                                      <span>{t("exerciseName")}</span>
+                                                      <span className="text-center">{t("sets")}</span>
+                                                      <span className="text-center">{t("reps")}</span>
+                                                      <span className="text-center">{t("weightUnit")}</span>
+                                                      <span />
+                                                    </div>
+                                                    {editingWorkout.exercises.map((ex, idx) => (
+                                                      <div key={idx} className="grid grid-cols-[1fr_60px_60px_72px_32px] gap-1.5 items-center">
+                                                        <span className="text-sm px-2 truncate">{ex.name}</span>
+                                                        <Input type="number" value={ex.sets} min={1} onChange={(e) => updateEditingWorkoutExercise(idx, "sets", Number(e.target.value))} className="h-8 text-center px-1 text-sm" />
+                                                        <Input type="number" value={ex.reps} min={1} onChange={(e) => updateEditingWorkoutExercise(idx, "reps", Number(e.target.value))} className="h-8 text-center px-1 text-sm" />
+                                                        <Input type="number" step="0.5" value={ex.weight ?? ""} onChange={(e) => updateEditingWorkoutExercise(idx, "weight", e.target.value ? Number(e.target.value) : undefined)} placeholder="—" className="h-8 text-center px-1 text-sm" />
+                                                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => removeExerciseFromEditingWorkout(idx)}><Trash2 className="size-3.5" /></Button>
+                                                      </div>
+                                                    ))}
+                                                  </div>
+                                                  </div>
+                                                )}
+                                                <div className="border-t pt-3 space-y-2">
+                                                  <Label className="text-sm">{t("addExercise")}</Label>
+                                                  <select value={newExercise.name} onChange={(e) => setNewExercise((ex) => ({ ...ex, name: e.target.value }))} className="w-full px-3 py-2 border rounded-md bg-background text-foreground text-sm">
+                                                    <option value="">{t("selectExercise")}</option>
+                                                    {exerciseNames.map((name) => (<option key={name} value={name}>{name}</option>))}
+                                                  </select>
+                                                  <div className="grid grid-cols-3 gap-2">
+                                                    <Input type="number" value={newExercise.sets} onChange={(e) => setNewExercise((ex) => ({ ...ex, sets: Number(e.target.value) }))} placeholder={t("sets")} className="h-8" />
+                                                    <Input type="number" value={newExercise.reps} onChange={(e) => setNewExercise((ex) => ({ ...ex, reps: Number(e.target.value) }))} placeholder={t("reps")} className="h-8" />
+                                                    <Input type="number" step="0.5" value={newExercise.weight ?? ""} onChange={(e) => setNewExercise((ex) => ({ ...ex, weight: e.target.value ? Number(e.target.value) : undefined }))} placeholder={t("weightUnit")} className="h-8" />
+                                                  </div>
+                                                  <Button onClick={addExerciseToEditingWorkout} variant="outline" className="w-full" disabled={!newExercise.name}>
+                                                    <Plus className="size-4" />{t("addExercise")}
+                                                  </Button>
+                                                </div>
+                                                <div className="flex gap-2">
+                                                  <Button onClick={saveEditedWorkout} className="flex-1" disabled={editingWorkout.exercises.length === 0}><Save className="size-4" />{t("save")}</Button>
+                                                  <Button variant="outline" onClick={cancelEditingWorkout}><X className="size-4" />{t("cancel")}</Button>
+                                                </div>
+                                              </div>
+                                            ) : (
+                                              <>
+                                                <div className="flex items-center justify-between mb-2">
+                                                  <div className="text-sm font-semibold">{t("workoutNumber")}{logIdx + 1}</div>
+                                                  <div className="flex gap-2">
+                                                    <Button variant="ghost" size="sm" onClick={() => startEditingWorkout(log)} title={t("edit")}><Pencil className="size-4" /></Button>
+                                                    <Button variant="ghost" size="sm" onClick={() => deleteWorkout(log._id!)} title={t("delete")}><Trash2 className="size-4" /></Button>
+                                                  </div>
+                                                </div>
+                                                <div className="space-y-1">
+                                                  {log.exercises?.map((ex, exIdx) => (
+                                                    <div key={exIdx} className="flex items-center justify-between py-1.5 px-2 rounded border text-sm">
+                                                      {editingExercise?.logId === log._id && editingExercise?.exerciseIndex === exIdx ? (
+                                                        <div className="flex-1 space-y-2">
+                                                          <select value={editingExercise.exercise.name} onChange={(e) => setEditingExercise({ ...editingExercise, exercise: { ...editingExercise.exercise, name: e.target.value } })} className="w-full px-3 py-2 border rounded-md bg-background text-foreground text-sm">
+                                                            <option value="">{t("selectExercise")}</option>
+                                                            {exerciseNames.map((name) => (<option key={name} value={name}>{name}</option>))}
+                                                          </select>
+                                                          <div className="flex gap-2 items-center flex-wrap">
+                                                            <Input type="number" value={editingExercise.exercise.sets} onChange={(e) => setEditingExercise({ ...editingExercise, exercise: { ...editingExercise.exercise, sets: Number(e.target.value) } })} placeholder={t("sets")} className="w-20 h-8" />
+                                                            <Input type="number" value={editingExercise.exercise.reps} onChange={(e) => setEditingExercise({ ...editingExercise, exercise: { ...editingExercise.exercise, reps: Number(e.target.value) } })} placeholder={t("reps")} className="w-20 h-8" />
+                                                            <Input type="number" step="0.1" value={editingExercise.exercise.weight || ""} onChange={(e) => setEditingExercise({ ...editingExercise, exercise: { ...editingExercise.exercise, weight: e.target.value ? Number(e.target.value) : undefined } })} placeholder={t("exerciseWeight")} className="w-24 h-8" />
+                                                            <Button size="sm" onClick={() => updateExercise(log._id!, exIdx, editingExercise.exercise)}><Check className="size-4" />{t("save")}</Button>
+                                                            <Button variant="outline" size="sm" onClick={() => setEditingExercise(null)}><X className="size-4" />{t("cancel")}</Button>
+                                                          </div>
+                                                        </div>
+                                                      ) : (
+                                                        <>
+                                                          <div className="flex-1">
+                                                            <span className="font-medium">{ex.name}</span>
+                                                            <span className="text-muted-foreground ml-2">{ex.sets} {t("setsLabel")} × {ex.reps} {t("repsLabel")}{ex.weight ? ` @ ${ex.weight} ${t("weightUnit")}` : ""}</span>
+                                                          </div>
+                                                          <div className="flex gap-1">
+                                                            <Button variant="ghost" size="sm" onClick={() => setEditingExercise({ logId: log._id!, exerciseIndex: exIdx, exercise: ex })} title={t("edit")}><Pencil className="size-4" /></Button>
+                                                            <Button variant="ghost" size="sm" onClick={() => deleteExercise(log._id!, exIdx)} title={t("delete")}><Trash2 className="size-4" /></Button>
+                                                          </div>
+                                                        </>
+                                                      )}
+                                                    </div>
+                                                  ))}
+                                                </div>
+                                              </>
+                                            )}
                                           </div>
                                         ))}
                                       </div>
                                     )}
-
-                                    <div className="border-t pt-3 space-y-3">
-                                      <Label className="text-sm font-semibold">{t("addExercise")}</Label>
-                                      <div>
-                                        <Label className="text-sm">{t("exerciseName")}</Label>
-                                        <select
-                                          value={newExercise.name}
-                                          onChange={(e) =>
-                                            setNewExercise((ex) => ({ ...ex, name: e.target.value }))
-                                          }
-                                          className="w-full mt-1 px-3 py-2 border rounded-md"
-                                        >
-                                          <option value="">{t("selectExercise")}</option>
-                                          {exerciseNames.map((name) => (
-                                            <option key={name} value={name}>
-                                              {name}
-                                            </option>
-                                          ))}
-                                        </select>
-                                        {exerciseNames.length === 0 && (
-                                          <p className="text-xs text-muted-foreground mt-1">
-                                            {t("noExerciseNamesHint")}
-                                          </p>
-                                        )}
-                                      </div>
-                                      <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                                        <div>
-                                          <Label className="text-sm">{t("sets")}</Label>
-                                          <Input
-                                            type="number"
-                                            value={newExercise.sets}
-                                            onChange={(e) =>
-                                              setNewExercise((ex) => ({ ...ex, sets: Number(e.target.value) }))
-                                            }
-                                            className="mt-1"
-                                          />
-                                        </div>
-                                        <div>
-                                          <Label className="text-sm">{t("reps")}</Label>
-                                          <Input
-                                            type="number"
-                                            value={newExercise.reps}
-                                            onChange={(e) =>
-                                              setNewExercise((ex) => ({ ...ex, reps: Number(e.target.value) }))
-                                            }
-                                            className="mt-1"
-                                          />
-                                        </div>
-                                        <div className="col-span-2 md:col-span-1">
-                                          <div className="flex items-center gap-1">
-                                            <Label className="text-sm">{t("weight")}</Label>
-                                            <span className="text-xs text-muted-foreground">({t("optional")})</span>
-                                          </div>
-                                          <Input
-                                            type="number"
-                                            step="0.1"
-                                            value={newExercise.weight || ""}
-                                            onChange={(e) =>
-                                              setNewExercise((ex) => ({ ...ex, weight: e.target.value ? Number(e.target.value) : undefined }))
-                                            }
-                                            className="mt-1"
-                                            placeholder={t("optional")}
-                                          />
-                                        </div>
-                                      </div>
-                                      <Button 
-                                        onClick={addExerciseToWorkout} 
-                                        className="w-full"
-                                        disabled={!newExercise.name}
-                                      >
-                                        <Plus className="size-4" />
-                                        {t("addExercise")}
-                                      </Button>
-                                    </div>
-
-                                    <div className="flex gap-2">
-                                      <Button 
-                                        onClick={addWorkout} 
-                                        className="flex-1"
-                                        disabled={workoutExercises.length === 0}
-                                      >
-                                        <Save className="size-4" />
-                                        {t("saveWorkout")}
-                                      </Button>
-                                      <Button
-                                        variant="outline"
-                                        onClick={() => {
-                                          setShowAddWorkout(false);
-                                          setWorkoutExercises([]);
-                                          setNewExercise({ name: "", sets: 3, reps: 10, weight: undefined });
-                                          setSelectedExerciseSetId("");
-                                        }}
-                                      >
-                                        <X className="size-4" />
-                                        {t("cancel")}
-                                      </Button>
-                                    </div>
                                   </div>
-                                )}
-                              </div>
-                            )}
+                                );
+                              })}
+                          </div>
+                        );
+                      })()
+                    )}
+                  </div>
+                )}
 
-                            {clientActiveTab === "history" && (
-                              <div className="pt-3 space-y-3">
-                                <div className="flex items-center justify-between">
-                                  {workoutLogs.length > 0 && (
-                                    <div className="flex items-center gap-2">
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => navigateWorkoutMonth(-1)}
-                                        title={t("previous")}
-                                      >
-                                        <ChevronLeft className="size-4 md:hidden" />
-                                        <span className="hidden md:inline">{t("previous")}</span>
-                                      </Button>
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => {
-                                          const today = new Date();
-                                          setWorkoutHistoryMonth(today.getMonth());
-                                          setWorkoutHistoryYear(today.getFullYear());
-                                        }}
-                                        title={t("today")}
-                                      >
-                                        <Calendar className="size-4" />
-                                        <span className="hidden md:inline">{t("today")}</span>
-                                      </Button>
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => navigateWorkoutMonth(1)}
-                                        title={t("next")}
-                                      >
-                                        <ChevronRight className="size-4 md:hidden" />
-                                        <span className="hidden md:inline">{t("next")}</span>
-                                      </Button>
-                                    </div>
+                {/* PROGRESS TAB */}
+                {clientActiveTab === "progress" && (
+                  <div className="space-y-3">
+                    <div className="flex gap-1 p-1 bg-muted rounded-lg w-fit">
+                      {(["weight", "dimensions"] as const).map((sub) => (
+                        <button
+                          key={sub}
+                          onClick={() => setProgressSubTab(sub)}
+                          className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors whitespace-nowrap ${
+                            progressSubTab === sub ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                          }`}
+                        >
+                          {sub === "weight" ? t("weightTab") : t("dimensions")}
+                        </button>
+                      ))}
+                    </div>
+                    {progressSubTab === "weight" && (
+                      clientWeights.length > 0
+                        ? <WeightChart data={clientWeights} lang={lang} />
+                        : <p className="text-muted-foreground text-sm text-center py-8">{t("noWeightData")}</p>
+                    )}
+                    {progressSubTab === "dimensions" && (
+                      clientDimensions.length > 0 ? (
+                        <>
+                          <DimensionsChart data={clientDimensions} lang={lang} />
+                          <div className="mt-4 space-y-2 max-h-[250px] overflow-y-auto">
+                            {[...clientDimensions].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((entry) => (
+                              <div key={entry._id || entry.date} className="p-2 border rounded-lg">
+                                <div className="text-xs font-medium mb-1">{new Date(entry.date).toLocaleDateString(currentLang === "pl" ? "pl-PL" : "en-US", { year: "numeric", month: "long", day: "numeric" })}</div>
+                                <div className="grid grid-cols-3 gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
+                                  {(["neck", "chest", "waist", "hips", "bicep", "thigh", "calf"] as const).map((field) =>
+                                    entry[field] !== undefined ? (
+                                      <span key={field}>{t(`dimension${field.charAt(0).toUpperCase() + field.slice(1)}`)}: <span className="font-medium text-foreground">{entry[field]} {t("dimensionsUnit")}</span></span>
+                                    ) : null
                                   )}
                                 </div>
-                                {workoutLogs.length > 0 && (
-                                  <div className="text-sm text-muted-foreground">
-                                    {new Date(workoutHistoryYear, workoutHistoryMonth, 1).toLocaleDateString(currentLang === "pl" ? "pl-PL" : "en-US", {
-                                      month: "long",
-                                      year: "numeric",
-                                    })}
-                                  </div>
-                                )}
-                                {workoutLogs.length === 0 ? (
-                                  <p className="text-muted-foreground text-sm">{t("noWorkoutHistory")}</p>
-                                ) : (
-                                  (() => {
-                                    const filteredLogs = filterLogsByMonth(workoutLogs, workoutHistoryMonth, workoutHistoryYear);
-                                    const groupedLogs = groupLogsByDay(filteredLogs);
-                                    
-                                    if (Object.keys(groupedLogs).length === 0) {
-                                      return (
-                                        <p className="text-muted-foreground text-sm">
-                                          {t("noWorkoutsForMonth")} {new Date(workoutHistoryYear, workoutHistoryMonth, 1).toLocaleDateString(lang === "pl" ? "pl-PL" : "en-US", {
-                                            month: "long",
-                                            year: "numeric",
-                                          })}
-                                        </p>
-                                      );
-                                    }
-
-                                    return (
-                                      <div className="space-y-3">
-                                        {Object.entries(groupedLogs)
-                                          .sort(([dateA], [dateB]) => new Date(dateB).getTime() - new Date(dateA).getTime())
-                                          .map(([date, dayLogs]) => {
-                                            const isExpanded = expandedDays.has(date);
-                                            const totalExercises = dayLogs.reduce((sum, log) => sum + (log.exercises?.length || 0), 0);
-                                            return (
-                                              <div key={date} className="space-y-3">
-                                                <div className="flex items-center justify-between border-b pb-2">
-                                                  <div className="font-semibold text-sm">
-                                                    {new Date(date).toLocaleDateString(currentLang === "pl" ? "pl-PL" : "en-US", {
-                                                      weekday: "long",
-                                                      year: "numeric",
-                                                      month: "long",
-                                                      day: "numeric",
-                                                    })} ({dayLogs.length} {dayLogs.length !== 1 ? t("workouts") : t("workout")}, {totalExercises} {totalExercises !== 1 ? t("exercises") : t("exercise")})
-                                                  </div>
-                                                  <Button
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    onClick={() => {
-                                                      const newExpanded = new Set(expandedDays);
-                                                      if (isExpanded) {
-                                                        newExpanded.delete(date);
-                                                      } else {
-                                                        newExpanded.add(date);
-                                                      }
-                                                      setExpandedDays(newExpanded);
-                                                    }}
-                                                  >
-                                                    {isExpanded ? (
-                                                      <>
-                                                        <ChevronUp className="size-4" />
-                                                        {t("collapse")}
-                                                      </>
-                                                    ) : (
-                                                      <>
-                                                        <ChevronDown className="size-4" />
-                                                        {t("expand")}
-                                                      </>
-                                                    )}
-                                                  </Button>
-                                                </div>
-                                                {isExpanded && (
-                                                  <div className="space-y-3">
-                                                    {dayLogs.map((log, logIdx) => (
-                                                      <div
-                                                        key={log._id || logIdx}
-                                                        className="border rounded-lg p-4 space-y-2"
-                                                      >
-                                                        {editingWorkout?.logId === log._id && editingWorkout ? (
-                                                          <div className="space-y-3">
-                                                            <div>
-                                                              <Label className="text-sm font-semibold">{t("date")}</Label>
-                                                              <Input
-                                                                type="date"
-                                                                value={editingWorkout.date}
-                                                                onChange={(e) => {
-                                                                  setEditingWorkout({
-                                                                    logId: editingWorkout.logId,
-                                                                    date: e.target.value,
-                                                                    exercises: editingWorkout.exercises,
-                                                                  });
-                                                                }}
-                                                                className="mt-1"
-                                                              />
-                                                            </div>
-
-                                                            {editingWorkout.exercises.length > 0 && (
-                                                              <div className="space-y-2">
-                                                                <Label className="text-sm font-semibold">{t("workoutNumber")}{logIdx + 1} - {t("exercises")}</Label>
-                                                                {editingWorkout.exercises.map((ex, idx) => (
-                                                                  <div key={idx} className="flex items-center justify-between p-2 border rounded">
-                                                                    <span className="text-sm">
-                                                                      {ex.name} - {ex.sets} {t("setsLabel")} × {ex.reps} {t("repsLabel")}
-                                                                      {ex.weight && ` @ ${ex.weight} ${t("weightUnit")}`}
-                                                                    </span>
-                                                                    <Button
-                                                                      variant="ghost"
-                                                                      size="sm"
-                                                                      onClick={() => removeExerciseFromEditingWorkout(idx)}
-                                                                      title={t("delete")}
-                                                                    >
-                                                                      <Trash2 className="size-4" />
-                                                                    </Button>
-                                                                  </div>
-                                                                ))}
-                                                              </div>
-                                                            )}
-
-                                                            <div className="border-t pt-3 space-y-3">
-                                                              <Label className="text-sm font-semibold">{t("workoutNumber")}{logIdx + 1} - {t("addExercise")}</Label>
-                                                              <div>
-                                                                <Label className="text-sm">{t("exerciseName")}</Label>
-                                                                <select
-                                                                  value={newExercise.name}
-                                                                  onChange={(e) =>
-                                                                    setNewExercise((ex) => ({ ...ex, name: e.target.value }))
-                                                                  }
-                                                                  className="w-full mt-1 px-3 py-2 border rounded-md"
-                                                                >
-                                                                  <option value="">{t("selectExercise")}</option>
-                                                                  {exerciseNames.map((name) => (
-                                                                    <option key={name} value={name}>
-                                                                      {name}
-                                                                    </option>
-                                                                  ))}
-                                                                </select>
-                                                              </div>
-                                                              <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                                                                <div>
-                                                                  <Label className="text-sm">{t("sets")}</Label>
-                                                                  <Input
-                                                                    type="number"
-                                                                    value={newExercise.sets}
-                                                                    onChange={(e) =>
-                                                                      setNewExercise((ex) => ({ ...ex, sets: Number(e.target.value) }))
-                                                                    }
-                                                                    className="mt-1"
-                                                                  />
-                                                                </div>
-                                                                <div>
-                                                                  <Label className="text-sm">{t("reps")}</Label>
-                                                                  <Input
-                                                                    type="number"
-                                                                    value={newExercise.reps}
-                                                                    onChange={(e) =>
-                                                                      setNewExercise((ex) => ({ ...ex, reps: Number(e.target.value) }))
-                                                                    }
-                                                                    className="mt-1"
-                                                                  />
-                                                                </div>
-                                                                <div className="col-span-2 md:col-span-1">
-                                                                  <div className="flex items-center gap-1">
-                                                                    <Label className="text-sm">{t("weight")}</Label>
-                                                                    <span className="text-xs text-muted-foreground">({t("optional")})</span>
-                                                                  </div>
-                                                                  <Input
-                                                                    type="number"
-                                                                    step="0.1"
-                                                                    value={newExercise.weight || ""}
-                                                                    onChange={(e) =>
-                                                                      setNewExercise((ex) => ({ ...ex, weight: e.target.value ? Number(e.target.value) : undefined }))
-                                                                    }
-                                                                    className="mt-1"
-                                                                    placeholder={t("optional")}
-                                                                  />
-                                                                </div>
-                                                              </div>
-                                                              <Button
-                                                                onClick={addExerciseToEditingWorkout}
-                                                                className="w-full"
-                                                                disabled={!newExercise.name}
-                                                              >
-                                                                <Plus className="size-4" />
-                                                                {t("addExercise")}
-                                                              </Button>
-                                                            </div>
-
-                                                            <div className="flex gap-2">
-                                                              <Button
-                                                                onClick={saveEditedWorkout}
-                                                                className="flex-1"
-                                                                disabled={!editingWorkout || editingWorkout.exercises.length === 0}
-                                                              >
-                                                                <Save className="size-4" />
-                                                                {t("save")}
-                                                              </Button>
-                                                              <Button
-                                                                variant="outline"
-                                                                onClick={cancelEditingWorkout}
-                                                              >
-                                                                <X className="size-4" />
-                                                                {t("cancel")}
-                                                              </Button>
-                                                            </div>
-                                                          </div>
-                                                        ) : (
-                                                          <>
-                                                            <div className="flex items-center justify-between mb-2">
-                                                              <div className="text-sm font-semibold">
-                                                                {t("workoutNumber")}{logIdx + 1}
-                                                              </div>
-                                                              <div className="flex gap-2">
-                                                                <Button
-                                                                  variant="ghost"
-                                                                  size="sm"
-                                                                  onClick={() => startEditingWorkout(log)}
-                                                                  title={t("edit")}
-                                                                >
-                                                                  <Pencil className="size-4" />
-                                                                </Button>
-                                                                <Button
-                                                                  variant="ghost"
-                                                                  size="sm"
-                                                                  onClick={() => deleteWorkout(log._id!)}
-                                                                  title={t("delete")}
-                                                                >
-                                                                  <Trash2 className="size-4" />
-                                                                </Button>
-                                                              </div>
-                                                            </div>
-                                                            <div className="space-y-2">
-                                                              {log.exercises?.map((ex, exIdx) => (
-                                                                <div
-                                                                  key={exIdx}
-                                                                  className="flex items-center justify-between py-2 px-3 rounded border"
-                                                                >
-                                                                  {editingExercise?.logId === log._id &&
-                                                                  editingExercise?.exerciseIndex === exIdx ? (
-                                                                    <div className="flex-1 space-y-2">
-                                                                      <select
-                                                                        value={editingExercise.exercise.name}
-                                                                        onChange={(e) =>
-                                                                          setEditingExercise({
-                                                                            ...editingExercise,
-                                                                            exercise: {
-                                                                              ...editingExercise.exercise,
-                                                                              name: e.target.value,
-                                                                            },
-                                                                          })
-                                                                        }
-                                                                        className="w-full px-3 py-2 border rounded-md"
-                                                                      >
-                                                                        <option value="">{t("selectExercise")}</option>
-                                                                        {exerciseNames.map((name) => (
-                                                                          <option key={name} value={name}>
-                                                                            {name}
-                                                                          </option>
-                                                                        ))}
-                                                                      </select>
-                                                                      <div className="flex gap-2 items-center">
-                                                                        <Input
-                                                                          type="number"
-                                                                          value={editingExercise.exercise.sets}
-                                                                          onChange={(e) =>
-                                                                            setEditingExercise({
-                                                                              ...editingExercise,
-                                                                              exercise: {
-                                                                                ...editingExercise.exercise,
-                                                                                sets: Number(e.target.value),
-                                                                              },
-                                                                            })
-                                                                          }
-                                                                          placeholder={t("sets")}
-                                                                          className="w-20"
-                                                                        />
-                                                                        <Input
-                                                                          type="number"
-                                                                          value={editingExercise.exercise.reps}
-                                                                          onChange={(e) =>
-                                                                            setEditingExercise({
-                                                                              ...editingExercise,
-                                                                              exercise: {
-                                                                                ...editingExercise.exercise,
-                                                                                reps: Number(e.target.value),
-                                                                              },
-                                                                            })
-                                                                          }
-                                                                          placeholder={t("reps")}
-                                                                          className="w-20"
-                                                                        />
-                                                                        <Input
-                                                                          type="number"
-                                                                          step="0.1"
-                                                                          value={editingExercise.exercise.weight || ""}
-                                                                          onChange={(e) =>
-                                                                            setEditingExercise({
-                                                                              ...editingExercise,
-                                                                              exercise: {
-                                                                                ...editingExercise.exercise,
-                                                                                weight: e.target.value ? Number(e.target.value) : undefined,
-                                                                              },
-                                                                            })
-                                                                          }
-                                                                          placeholder={t("exerciseWeight")}
-                                                                          className="w-24"
-                                                                        />
-                                                                        <Button
-                                                                          size="sm"
-                                                                          onClick={() =>
-                                                                            updateExercise(
-                                                                              log._id!,
-                                                                              exIdx,
-                                                                              editingExercise.exercise
-                                                                            )
-                                                                          }
-                                                                        >
-                                                                          <Check className="size-4" />
-                                                                          {t("save")}
-                                                                        </Button>
-                                                                        <Button
-                                                                          variant="outline"
-                                                                          size="sm"
-                                                                          onClick={() => setEditingExercise(null)}
-                                                                        >
-                                                                          <X className="size-4" />
-                                                                          {t("cancel")}
-                                                                        </Button>
-                                                                      </div>
-                                                                    </div>
-                                                                  ) : (
-                                                                    <>
-                                                                      <div className="flex-1">
-                                                                        <span className="font-medium">{ex.name}</span>
-                                                                        <span className="text-sm text-muted-foreground ml-2">
-                                                                          {ex.sets} {t("setsLabel")} × {ex.reps} {t("repsLabel")}
-                                                                          {ex.weight && ` @ ${ex.weight} ${t("weightUnit")}`}
-                                                                        </span>
-                                                                      </div>
-                                                                      <div className="flex gap-2">
-                                                                        <Button
-                                                                          variant="ghost"
-                                                                          size="sm"
-                                                                          onClick={() =>
-                                                                            setEditingExercise({
-                                                                              logId: log._id!,
-                                                                              exerciseIndex: exIdx,
-                                                                              exercise: ex,
-                                                                            })
-                                                                          }
-                                                                          title={t("edit")}
-                                                                        >
-                                                                          <Pencil className="size-4" />
-                                                                        </Button>
-                                                                        <Button
-                                                                          variant="ghost"
-                                                                          size="sm"
-                                                                          onClick={() => deleteExercise(log._id!, exIdx)}
-                                                                          title={t("delete")}
-                                                                        >
-                                                                          <Trash2 className="size-4" />
-                                                                        </Button>
-                                                                      </div>
-                                                                    </>
-                                                                  )}
-                                                                </div>
-                                                              ))}
-                                                            </div>
-                                                          </>
-                                                        )}
-                                                      </div>
-                                                    ))}
-                                                  </div>
-                                                )}
-                                              </div>
-                                            );
-                                          })}
-                                      </div>
-                                    );
-                                  })()
-                                )}
                               </div>
-                            )}
-
-                            {clientActiveTab === "progress" && (
-                              <div className="pt-3 space-y-3">
-                                {/* Progress sub-tab navigation */}
-                                <div className="flex gap-1 border-b">
-                                  <button
-                                    onClick={() => setProgressSubTab("weight")}
-                                    className={`px-3 py-1.5 text-xs font-medium transition-colors whitespace-nowrap rounded-t ${
-                                      progressSubTab === "weight"
-                                        ? "border-b-2 border-primary text-foreground font-semibold"
-                                        : "text-foreground/70 hover:text-foreground"
-                                    }`}
-                                  >
-                                    {t("weightTab")}
-                                  </button>
-                                  <button
-                                    onClick={() => setProgressSubTab("dimensions")}
-                                    className={`px-3 py-1.5 text-xs font-medium transition-colors whitespace-nowrap rounded-t ${
-                                      progressSubTab === "dimensions"
-                                        ? "border-b-2 border-primary text-foreground font-semibold"
-                                        : "text-foreground/70 hover:text-foreground"
-                                    }`}
-                                  >
-                                    {t("dimensions")}
-                                  </button>
-                                </div>
-
-                                {progressSubTab === "weight" && (
-                                  <div>
-                                    {clientWeights.length > 0 ? (
-                                      <WeightChart data={clientWeights} lang={lang} />
-                                    ) : (
-                                      <p className="text-muted-foreground text-sm text-center py-8">
-                                        {t("noWeightData")}
-                                      </p>
-                                    )}
-                                  </div>
-                                )}
-
-                                {progressSubTab === "dimensions" && (
-                                  <div>
-                                    {clientDimensions.length > 0 ? (
-                                      <>
-                                        <DimensionsChart data={clientDimensions} lang={lang} />
-                                        <div className="mt-4 space-y-2 max-h-[250px] overflow-y-auto">
-                                          {[...clientDimensions].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((entry) => (
-                                            <div key={entry._id || entry.date} className="p-2 border rounded-lg">
-                                              <div className="text-xs font-medium mb-1">{new Date(entry.date).toLocaleDateString(currentLang === "pl" ? "pl-PL" : "en-US", { year: "numeric", month: "long", day: "numeric" })}</div>
-                                              <div className="grid grid-cols-3 gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
-                                                {(["neck", "chest", "waist", "hips", "bicep", "thigh", "calf"] as const).map((field) =>
-                                                  entry[field] !== undefined ? (
-                                                    <span key={field}>{t(`dimension${field.charAt(0).toUpperCase() + field.slice(1)}`)}: <span className="font-medium text-foreground">{entry[field]} {t("dimensionsUnit")}</span></span>
-                                                  ) : null
-                                                )}
-                                              </div>
-                                            </div>
-                                          ))}
-                                        </div>
-                                      </>
-                                    ) : (
-                                      <p className="text-muted-foreground text-sm text-center py-8">
-                                        {t("noDimensionsData")}
-                                      </p>
-                                    )}
-                                  </div>
-                                )}
-                              </div>
-                            )}
-
-                            {clientActiveTab === "plans" && (
-                              <div className="pt-3 space-y-3">
-                                <div>
-                                  <Label className="text-sm font-semibold">{t("workoutsPlan")}</Label>
-                                  <Textarea
-                                    value={workoutPlan}
-                                    onChange={(e) => setWorkoutPlan(e.target.value)}
-                                    rows={4}
-                                    className="mt-1"
-                                  />
-                                </div>
-                                <div>
-                                  <Label className="text-sm font-semibold">{t("dietPlan")}</Label>
-                                  <Textarea
-                                    value={dietPlan}
-                                    onChange={(e) => setDietPlan(e.target.value)}
-                                    rows={4}
-                                    className="mt-1"
-                                  />
-                                </div>
-                                <Button size="sm" onClick={savePlan} className="w-full">
-                                  <Save className="size-4" />
-                                  {t("save")}
-                                </Button>
-                              </div>
-                            )}
+                            ))}
                           </div>
-                        )}
-                      </div>
-                    );
-                  });
-                })()}
-              </div>
-            </>
+                        </>
+                      ) : (
+                        <p className="text-muted-foreground text-sm text-center py-8">{t("noDimensionsData")}</p>
+                      )
+                    )}
+                  </div>
+                )}
+
+                {/* PLANS TAB */}
+                {clientActiveTab === "plans" && (
+                  <div className="space-y-3">
+                    <div>
+                      <Label className="text-sm font-semibold">{t("workoutsPlan")}</Label>
+                      <Textarea value={workoutPlan} onChange={(e) => setWorkoutPlan(e.target.value)} rows={4} className="mt-1" />
+                    </div>
+                    <div>
+                      <Label className="text-sm font-semibold">{t("dietPlan")}</Label>
+                      <Textarea value={dietPlan} onChange={(e) => setDietPlan(e.target.value)} rows={4} className="mt-1" />
+                    </div>
+                    <Button size="sm" onClick={savePlan} className="w-full"><Save className="size-4" />{t("save")}</Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      )}
+
+      {/* TAB: Library */}
+      {trainerTab === "library" && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {/* Exercise Names */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">{t("exerciseNames")}</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex gap-2">
+                <Input value={newExerciseName} onChange={(e) => setNewExerciseName(e.target.value)} placeholder={t("exerciseNamePlaceholder")} className="flex-1" onKeyDown={(e) => { if (e.key === "Enter") addExerciseName(); }} />
+                <Button onClick={addExerciseName} size="sm"><Plus className="size-4" /></Button>
+              </div>
+              {exerciseNames.length > 0 && (
+                <>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground size-4" />
+                    <Input value={exerciseSearchTerm} onChange={(e) => setExerciseSearchTerm(e.target.value)} placeholder={t("search")} className="pl-9" />
+                  </div>
+                  <div className="space-y-1.5 max-h-[360px] overflow-y-auto">
+                    {exerciseNames.filter((name) => name.toLowerCase().includes(exerciseSearchTerm.toLowerCase())).map((name) => (
+                      <div key={name} className="flex items-center justify-between p-2 border rounded">
+                        <span className="text-sm">{name}</span>
+                        <Button variant="ghost" size="sm" onClick={() => deleteExerciseName(name)} title={t("delete")}><Trash2 className="size-3.5" /></Button>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+              {exerciseNames.length === 0 && <p className="text-muted-foreground text-sm">{t("noExerciseNames")}</p>}
+            </CardContent>
+          </Card>
+
+          {/* Exercise Sets */}
+          {trainer.type === "personal" ? (
+            <Card>
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base">{t("exerciseSets")}</CardTitle>
+                  {!showAddSet && !editingSet && (
+                    <Button size="sm" variant="outline" onClick={() => setShowAddSet(true)}><Plus className="size-4" /><span className="ml-1">{t("addSet")}</span></Button>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {showAddSet && (
+                  <div className="space-y-3 p-3 border rounded-lg">
+                    <div>
+                      <Label className="text-sm font-semibold">{t("newExerciseSet")}</Label>
+                      <Input value={newSetName} onChange={(e) => setNewSetName(e.target.value)} placeholder={t("exerciseSetNamePlaceholder")} className="mt-1" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-sm font-medium">{t("assignToClient")}</span>
+                        <TooltipProvider delayDuration={0}>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Info className="size-3.5 text-muted-foreground cursor-help" />
+                            </TooltipTrigger>
+                            <TooltipContent className="max-w-56 text-xs">{t("assignToClientHint")}</TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </div>
+                      <select value={newSetClientId} onChange={(e) => setNewSetClientId(e.target.value)} className="w-full mt-1 px-3 py-2 border rounded-md bg-background text-foreground">
+                        <option value="">{t("selectClient")}</option>
+                        {clients.map((c) => (<option key={c._id} value={c._id}>{c.name}</option>))}
+                      </select>
+                    </div>
+                    {newSetExercises.length > 0 && (
+                      <div className="space-y-1 max-h-[120px] overflow-y-auto">
+                        {newSetExercises.map((ex, idx) => (
+                          <div key={idx} className="flex items-center justify-between p-2 border rounded text-sm">
+                            <span>{ex.name} — {ex.defaultSets}×{ex.defaultReps}{ex.defaultWeight ? ` @ ${ex.defaultWeight}${t("weightUnit")}` : ""}</span>
+                            <Button variant="ghost" size="sm" onClick={() => setNewSetExercises((prev) => prev.filter((_, i) => i !== idx))}><Trash2 className="size-4" /></Button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <div className="border-t pt-2 space-y-2">
+                      <Label className="text-xs text-muted-foreground">{t("addExerciseToSet")}</Label>
+                      <select value={newSetExercise.name} onChange={(e) => setNewSetExercise((ex) => ({ ...ex, name: e.target.value }))} className="w-full px-3 py-2 border rounded-md bg-background text-foreground">
+                        <option value="">{t("selectExercise")}</option>
+                        {exerciseNames.map((name) => (<option key={name} value={name}>{name}</option>))}
+                      </select>
+                      <div className="grid grid-cols-3 gap-2">
+                        <Input type="number" value={newSetExercise.defaultSets} onChange={(e) => setNewSetExercise((ex) => ({ ...ex, defaultSets: Number(e.target.value) }))} placeholder={t("sets")} />
+                        <Input type="number" value={newSetExercise.defaultReps} onChange={(e) => setNewSetExercise((ex) => ({ ...ex, defaultReps: Number(e.target.value) }))} placeholder={t("reps")} />
+                        <Input type="number" step="0.1" value={newSetExercise.defaultWeight || ""} onChange={(e) => setNewSetExercise((ex) => ({ ...ex, defaultWeight: e.target.value ? Number(e.target.value) : undefined }))} placeholder={`${t("weightUnit")} (${t("optional")})`} />
+                      </div>
+                      <Button size="sm" variant="outline" className="w-full" disabled={!newSetExercise.name.trim()} onClick={() => {
+                        if (!newSetExercise.name.trim()) return;
+                        setNewSetExercises((prev) => [...prev, { ...newSetExercise }]);
+                        setNewSetExercise({ name: "", defaultSets: 3, defaultReps: 10, defaultWeight: undefined });
+                      }}>
+                        <Plus className="size-4" /><span className="ml-1">{t("addExercise")}</span>
+                      </Button>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button size="sm" className="flex-1" disabled={!newSetName.trim() || newSetExercises.length === 0} onClick={createExerciseSet}>
+                        <Save className="size-4" /><span className="ml-1">{t("saveSet")}</span>
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => { setShowAddSet(false); setNewSetName(""); setNewSetExercises([]); setNewSetClientId(""); setNewSetExercise({ name: "", defaultSets: 3, defaultReps: 10, defaultWeight: undefined }); }}>
+                        <X className="size-4" /><span className="ml-1">{t("cancel")}</span>
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                {!showAddSet && exerciseSets.length === 0 && <p className="text-muted-foreground text-sm">{t("noExerciseSets")}</p>}
+                <div className="space-y-2 max-h-[360px] overflow-y-auto">
+                  {exerciseSets.map((set) => (
+                    <div key={set._id} className="border rounded-lg">
+                      {editingSet?._id === set._id && editingSet ? (
+                        <div className="p-3 space-y-2">
+                          <Input value={editingSet.name} onChange={(e) => { const s = editingSet; if (s) setEditingSet({ ...s, name: e.target.value }); }} />
+                          <div className="space-y-1 max-h-[120px] overflow-y-auto">
+                            {editingSet.exercises.map((ex, idx) => (
+                              <div key={idx} className="flex items-center justify-between p-1 border rounded text-sm">
+                                <span>{ex.name} — {ex.defaultSets}×{ex.defaultReps}{ex.defaultWeight ? ` @ ${ex.defaultWeight}${t("weightUnit")}` : ""}</span>
+                                <Button variant="ghost" size="sm" onClick={() => { const s = editingSet; if (s) setEditingSet({ ...s, exercises: s.exercises.filter((_, i) => i !== idx) }); }}><Trash2 className="size-3" /></Button>
+                              </div>
+                            ))}
+                          </div>
+                          <div className="border-t pt-2 space-y-2">
+                            <Label className="text-xs text-muted-foreground">{t("addExercise")}</Label>
+                            <select value={editingSetExercise.name} onChange={(e) => setEditingSetExercise((ex) => ({ ...ex, name: e.target.value }))} className="w-full px-3 py-2 border rounded-md bg-background text-foreground">
+                              <option value="">{t("selectExercise")}</option>
+                              {exerciseNames.map((name) => (<option key={name} value={name}>{name}</option>))}
+                            </select>
+                            <div className="grid grid-cols-3 gap-2">
+                              <Input type="number" value={editingSetExercise.defaultSets} onChange={(e) => setEditingSetExercise((ex) => ({ ...ex, defaultSets: Number(e.target.value) }))} placeholder={t("sets")} />
+                              <Input type="number" value={editingSetExercise.defaultReps} onChange={(e) => setEditingSetExercise((ex) => ({ ...ex, defaultReps: Number(e.target.value) }))} placeholder={t("reps")} />
+                              <Input type="number" step="0.1" value={editingSetExercise.defaultWeight || ""} onChange={(e) => setEditingSetExercise((ex) => ({ ...ex, defaultWeight: e.target.value ? Number(e.target.value) : undefined }))} placeholder={t("weightUnit")} />
+                            </div>
+                            <Button size="sm" variant="outline" className="w-full" disabled={!editingSetExercise.name.trim()} onClick={() => {
+                              if (!editingSetExercise.name.trim() || !editingSet) return;
+                              const s = editingSet;
+                              setEditingSet({ ...s, exercises: [...s.exercises, { ...editingSetExercise }] });
+                              setEditingSetExercise({ name: "", defaultSets: 3, defaultReps: 10, defaultWeight: undefined });
+                            }}>
+                              <Plus className="size-4" /><span className="ml-1">{t("addExercise")}</span>
+                            </Button>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button size="sm" className="flex-1" onClick={saveEditedSet}><Save className="size-4" /><span className="ml-1">{t("save")}</span></Button>
+                            <Button size="sm" variant="outline" onClick={() => setEditingSet(null)}><X className="size-4" /><span className="ml-1">{t("cancel")}</span></Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-between p-3">
+                          <div>
+                            <div className="font-medium text-sm">{set.name}</div>
+                            <div className="text-xs text-muted-foreground">
+                              {set.exercises.length} {set.exercises.length !== 1 ? t("exercises") : t("exercise")}
+                              {set.clientId && (() => { const c = clients.find((cl) => cl._id === set.clientId); return c ? ` · ${c.name}` : ""; })()}
+                            </div>
+                          </div>
+                          <div className="flex gap-1">
+                            <Button variant="ghost" size="sm" onClick={() => { setEditingSet(set as ExerciseSet & { _id: string }); setEditingSetExercise({ name: "", defaultSets: 3, defaultReps: 10, defaultWeight: undefined }); }}><Pencil className="size-4" /></Button>
+                            <Button variant="ghost" size="sm" onClick={() => deleteExerciseSet(set._id!)}><Trash2 className="size-4" /></Button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card>
+              <CardContent className="pt-6">
+                <p className="text-muted-foreground text-sm text-center">{t("exerciseSetsPersonalOnly")}</p>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
+
+      {/* TAB: Account */}
+      {trainerTab === "account" && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
+          <MembershipStatus trainer={trainer} clientsCount={clients.length} lang={lang} />
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2"><ShoppingBag className="size-5" />{t("storeSettings")}</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label className="text-sm">{t("storeLink")}</Label>
+                <Input value={storeLink} onChange={(e) => setStoreLink(e.target.value)} placeholder={t("storeLinkPlaceholder")} className="mt-1" type="url" />
+              </div>
+              <div>
+                <Label className="text-sm">{t("storeMessage")}</Label>
+                <Textarea value={storeMessage} onChange={(e) => setStoreMessage(e.target.value)} placeholder={t("storeMessagePlaceholder")} rows={3} className="mt-1" />
+              </div>
+              <Button onClick={saveStoreSettings} className="w-full">
+                {storeSettingsSaved ? <Check className="size-4" /> : <Save className="size-4" />}
+                <span className="ml-1">{storeSettingsSaved ? t("storeSettingsSaved") : t("saveStoreSettings")}</span>
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

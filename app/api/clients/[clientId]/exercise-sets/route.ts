@@ -18,7 +18,13 @@ export async function GET(
     const db = await getDb();
     const sets = await db
       .collection("exercise-sets")
-      .find({ trainerId: new ObjectId(trainer._id.toString()) })
+      .find({
+        trainerId: new ObjectId(trainer._id.toString()),
+        $or: [
+          { clientId: new ObjectId(clientId) },
+          { clientId: { $exists: false } },
+        ],
+      })
       .sort({ createdAt: 1 })
       .toArray();
 

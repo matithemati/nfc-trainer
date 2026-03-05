@@ -9,6 +9,8 @@ export type Trainer = {
     maxClients: number;
     expirationDate?: string | null; // ISO date string
     pricePerMonth?: number;
+    storeLink?: string;
+    storeMessage?: string;
     createdAt?: Date;
     updatedAt?: Date;
     notes?: Array<{
@@ -47,6 +49,7 @@ export type Trainer = {
   export type ExerciseSet = {
     _id?: ObjectId | string;
     trainerId: ObjectId | string;
+    clientId?: ObjectId | string;
     name: string;
     exercises: {
       name: string;
