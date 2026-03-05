@@ -186,9 +186,9 @@ export function TrainerView({
         return;
       }
 
-      let data;
+      let data: { trainer: Trainer; clients: Client[]; error?: string };
       try {
-        data = JSON.parse(text);
+        data = JSON.parse(text) as { trainer: Trainer; clients: Client[]; error?: string };
       } catch (parseError) {
         setError("Invalid response from server");
         console.error("JSON parse error:", parseError, "Response:", text);
@@ -229,7 +229,7 @@ export function TrainerView({
       try {
         const res = await cachedFetch(`/api/trainer/clients?search=${encodeURIComponent(clientSearchTerm)}`);
         if (res.ok) {
-          const data = await res.json();
+          const data = await res.json() as { clients: Client[] };
           setClientSearchResults(data.clients || []);
         }
       } catch (err) {
@@ -249,7 +249,7 @@ export function TrainerView({
       try {
         const res = await cachedFetch(`/api/trainer/exercise-names?search=${encodeURIComponent(exerciseSearchTerm)}`);
         if (res.ok) {
-          const data = await res.json();
+          const data = await res.json() as { exerciseNames: string[] };
           setExerciseSearchResults(data.exerciseNames || []);
         }
       } catch (err) {
@@ -267,7 +267,7 @@ export function TrainerView({
         const res = await cachedFetch(
           `/api/clients/${selectedClient._id}/logs?month=${workoutHistoryMonth}&year=${workoutHistoryYear}&order=desc`
         );
-        if (res.ok) setWorkoutLogs(await res.json());
+        if (res.ok) setWorkoutLogs(await res.json() as WorkoutLog[]);
       } catch (err) {
         console.error("Failed to load logs for month:", err);
       }
@@ -279,7 +279,7 @@ export function TrainerView({
     try {
       const res = await cachedFetch(`/api/trainer/exercise-names`);
       if (res.ok) {
-        const data = await res.json();
+        const data = await res.json() as { exerciseNames: string[] };
         setExerciseNames(data.exerciseNames || []);
       } else if (res.status === 401) {
         window.location.href = `/${lang}/auth/signin`;
@@ -298,7 +298,7 @@ export function TrainerView({
         headers: { "Content-Type": "application/json" },
       });
       if (res.ok) {
-        const data = await res.json();
+        const data: { exerciseNames: string[] } = await res.json();
         setExerciseNames(data.exerciseNames || []);
         setNewExerciseName("");
         invalidateCachePrefix("/api/trainer/exercise-names");
@@ -316,7 +316,7 @@ export function TrainerView({
         method: "DELETE",
       });
       if (res.ok) {
-        const data = await res.json();
+        const data: { exerciseNames: string[] } = await res.json();
         setExerciseNames(data.exerciseNames || []);
         invalidateCachePrefix("/api/trainer/exercise-names");
       } else if (res.status === 401) {
@@ -336,7 +336,7 @@ export function TrainerView({
     try {
       const res = await cachedFetch("/api/trainer/exercise-sets");
       if (res.ok) {
-        const data = await res.json();
+        const data = await res.json() as { exerciseSets: ExerciseSet[] };
         setExerciseSets(data.exerciseSets || []);
       } else if (res.status === 401) {
         window.location.href = `/${lang}/auth/signin`;
@@ -417,7 +417,7 @@ export function TrainerView({
 
     try {
       const wRes = await cachedFetch(`/api/clients/${c._id}/weights`);
-      if (wRes.ok) setClientWeights(await wRes.json());
+      if (wRes.ok) setClientWeights(await wRes.json() as WeightPoint[]);
     } catch (err) {
       console.error("Failed to load weights:", err);
     }
@@ -427,8 +427,8 @@ export function TrainerView({
         cachedFetch(`/api/clients/${c._id}/dimensions`),
         cachedFetch(`/api/clients/${c._id}/dimensions?order=desc`),
       ]);
-      if (dRes.ok) setClientDimensions(await dRes.json());
-      if (dDescRes.ok) setClientDimensionsDesc(await dDescRes.json());
+      if (dRes.ok) setClientDimensions(await dRes.json() as DimensionEntry[]);
+      if (dDescRes.ok) setClientDimensionsDesc(await dDescRes.json() as DimensionEntry[]);
     } catch (err) {
       console.error("Failed to load dimensions:", err);
     }
@@ -437,7 +437,7 @@ export function TrainerView({
       try {
         const sRes = await cachedFetch(`/api/trainer/exercise-sets?clientId=${c._id}`);
         if (sRes.ok) {
-          const sData = await sRes.json();
+          const sData = await sRes.json() as { exerciseSets: ExerciseSet[] };
           setClientExerciseSets(sData.exerciseSets || []);
         }
       } catch (err) {
@@ -457,11 +457,11 @@ export function TrainerView({
         headers: { "Content-Type": "application/json" },
       });
       if (!res.ok) {
-        const error = await res.json();
+        const error: { error: string } = await res.json();
         setError(error.error || t("failedToSavePlan"));
         return;
       }
-      const updated = await res.json();
+      const updated: Client = await res.json();
       if (!updated) {
         setError(t("failedToSavePlan"));
         return;
@@ -535,7 +535,7 @@ export function TrainerView({
     try {
       invalidateCachePrefix(`/api/clients/${clientId}/logs`);
       const res = await cachedFetch(`/api/clients/${clientId}/logs?month=${month}&year=${year}&order=desc`);
-      if (res.ok) setWorkoutLogs(await res.json());
+      if (res.ok) setWorkoutLogs(await res.json() as WorkoutLog[]);
     } catch (err) {
       console.error("Failed to refresh logs:", err);
     }
@@ -614,8 +614,8 @@ export function TrainerView({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: newClientName.trim() }),
       });
-      const data = await res.json();
       if (res.ok) {
+        const data: Client = await res.json();
         setClients((prev) => [...prev, data]);
         setAllClients((prev) => [...prev, data]);
         invalidateCachePrefix("/api/trainer/clients");
@@ -624,7 +624,8 @@ export function TrainerView({
         setNewClientName("");
         setShowAddClient(false);
       } else {
-        setError(data.error || t("failedToLoadTrainer"));
+        const errData: { error: string } = await res.json();
+        setError(errData.error || t("failedToLoadTrainer"));
       }
     } catch (err) {
       console.error("Failed to create client:", err);
@@ -640,7 +641,7 @@ export function TrainerView({
         body: JSON.stringify({ name: name.trim() }),
       });
       if (res.ok) {
-        const updated = await res.json();
+        const updated: Client = await res.json();
         setClients((prev) => prev.map((c) => (c._id === clientId ? { ...c, name: updated.name } : c)));
         if (selectedClient?._id === clientId) setSelectedClient((prev) => prev ? { ...prev, name: updated.name } : prev);
         invalidateCachePrefix("/api/trainer/clients");
@@ -661,7 +662,7 @@ export function TrainerView({
         body: JSON.stringify({ storeLink, storeMessage }),
       });
       if (res.ok) {
-        const updated = await res.json();
+        const updated: Pick<Trainer, "storeLink" | "storeMessage"> = await res.json();
         setTrainer((prev) => prev ? { ...prev, storeLink: updated.storeLink, storeMessage: updated.storeMessage } : prev);
         setStoreSettingsSaved(true);
         setTimeout(() => setStoreSettingsSaved(false), 2000);

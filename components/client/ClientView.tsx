@@ -143,28 +143,28 @@ export function ClientView({
   useEffect(() => {
     (async () => {
       const res = await cachedFetch(`/api/clients/${clientId}`);
-      const data = await res.json();
+      const data = await res.json() as { client: Client; trainer: Trainer };
       setClient(data.client);
       setTrainer(data.trainer);
 
       if (data.trainer?.type === "personal") {
         const sRes = await cachedFetch(`/api/clients/${clientId}/exercise-sets`);
         if (sRes.ok) {
-          const sData = await sRes.json();
+          const sData = await sRes.json() as { exerciseSets: ExerciseSet[] };
           setExerciseSets(sData.exerciseSets || []);
         }
         // logs fetched by the month-based useEffect
       }
 
       const wRes = await cachedFetch(`/api/clients/${clientId}/weights`);
-      if (wRes.ok) setWeights(await wRes.json());
+      if (wRes.ok) setWeights(await wRes.json() as WeightPoint[]);
 
       const [dRes, dDescRes] = await Promise.all([
         cachedFetch(`/api/clients/${clientId}/dimensions`),
         cachedFetch(`/api/clients/${clientId}/dimensions?order=desc`),
       ]);
-      if (dRes.ok) setDimensions(await dRes.json());
-      if (dDescRes.ok) setDimensionHistoryData(await dDescRes.json());
+      if (dRes.ok) setDimensions(await dRes.json() as DimensionEntry[]);
+      if (dDescRes.ok) setDimensionHistoryData(await dDescRes.json() as DimensionEntry[]);
       // logs fetched by the month-based useEffect for all trainer types
     })();
   }, [clientId]);
@@ -175,7 +175,7 @@ export function ClientView({
       const res = await cachedFetch(
         `/api/clients/${clientId}/logs?month=${workoutHistoryMonth}&year=${workoutHistoryYear}&order=desc`
       );
-      if (res.ok) setLogs(await res.json());
+      if (res.ok) setLogs(await res.json() as WorkoutLog[]);
     })();
   }, [clientId, workoutHistoryMonth, workoutHistoryYear]);
 
@@ -185,7 +185,7 @@ export function ClientView({
       const res = await cachedFetch(
         `/api/clients/${clientId}/weights?month=${weightHistoryMonth}&year=${weightHistoryYear}&order=desc`
       );
-      if (res.ok) setWeightHistoryData(await res.json());
+      if (res.ok) setWeightHistoryData(await res.json() as WeightPoint[]);
     })();
   }, [clientId, weightHistoryMonth, weightHistoryYear]);
 
@@ -195,8 +195,8 @@ export function ClientView({
       cachedFetch(`/api/clients/${clientId}/weights`),
       cachedFetch(`/api/clients/${clientId}/weights?month=${weightHistoryMonth}&year=${weightHistoryYear}&order=desc`),
     ]);
-    if (wRes.ok) setWeights(await wRes.json());
-    if (whRes.ok) setWeightHistoryData(await whRes.json());
+    if (wRes.ok) setWeights(await wRes.json() as WeightPoint[]);
+    if (whRes.ok) setWeightHistoryData(await whRes.json() as WeightPoint[]);
   };
 
   const refreshDimensions = async () => {
@@ -205,8 +205,8 @@ export function ClientView({
       cachedFetch(`/api/clients/${clientId}/dimensions`),
       cachedFetch(`/api/clients/${clientId}/dimensions?order=desc`),
     ]);
-    if (dRes.ok) setDimensions(await dRes.json());
-    if (ddRes.ok) setDimensionHistoryData(await ddRes.json());
+    if (dRes.ok) setDimensions(await dRes.json() as DimensionEntry[]);
+    if (ddRes.ok) setDimensionHistoryData(await ddRes.json() as DimensionEntry[]);
   };
 
   const refreshLogs = async () => {
@@ -214,7 +214,7 @@ export function ClientView({
     const res = await cachedFetch(
       `/api/clients/${clientId}/logs?month=${workoutHistoryMonth}&year=${workoutHistoryYear}&order=desc`
     );
-    if (res.ok) setLogs(await res.json());
+    if (res.ok) setLogs(await res.json() as WorkoutLog[]);
   };
 
   const addWeight = async () => {
@@ -237,12 +237,12 @@ export function ClientView({
       headers: { "Content-Type": "application/json" },
     });
     
-    const data = await res.json();
+    const data: { error: string } = await res.json();
     if (!res.ok) {
       setWeightError(data.error || t("failedToAddWeight"));
       return;
     }
-    
+
     await refreshWeights();
     setNewWeight("");
     setWeightDate(getTodayDate());
@@ -269,12 +269,12 @@ export function ClientView({
       headers: { "Content-Type": "application/json" },
     });
     
-    const data = await res.json();
+    const data: { error: string } = await res.json();
     if (!res.ok) {
       setWeightError(data.error || t("failedToUpdateWeight"));
       return;
     }
-    
+
     await refreshWeights();
     setEditingWeight(null);
   };
@@ -319,7 +319,7 @@ export function ClientView({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ date: dimensionDate, ...newDimension }),
     });
-    const data = await res.json();
+    const data: { error: string } = await res.json();
     if (!res.ok) {
       setDimensionError(data.error || t("failedToAddDimensions"));
       return;
@@ -343,7 +343,7 @@ export function ClientView({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ dimensionId: _id, date, ...measurements }),
     });
-    const data = await res.json();
+    const data: { error: string } = await res.json();
     if (!res.ok) {
       setDimensionError(data.error || t("failedToUpdateDimensions"));
       return;

@@ -9,7 +9,7 @@ interface CacheEntry {
   timestamp: number;
 }
 
-class CachedResponse {
+export class CachedResponse {
   ok: boolean;
   status: number;
   private _body: string;
@@ -24,8 +24,7 @@ class CachedResponse {
     return this._body;
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  async json(): Promise<any> {
+  async json(): Promise<unknown> {
     return JSON.parse(this._body);
   }
 }
