@@ -59,6 +59,7 @@ export function TrainersManagement({ lang }: { lang: string }) {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [showDeleted, setShowDeleted] = useState(false);
   const [editingTrainer, setEditingTrainer] = useState<Trainer | null>(null);
   const [createType, setCreateType] = useState<"personal" | "studio">("studio");
@@ -77,7 +78,7 @@ export function TrainersManagement({ lang }: { lang: string }) {
         page: page.toString(),
         limit: pageSize.toString(),
         showDeleted: showDeleted.toString(),
-        ...(search && { search }),
+        ...(debouncedSearch && { search: debouncedSearch }),
       });
       const res = await fetch(`/api/admin/trainers?${params}`);
       const data = await res.json();
@@ -91,8 +92,16 @@ export function TrainersManagement({ lang }: { lang: string }) {
   };
 
   useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+      setPage(1);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  useEffect(() => {
     fetchTrainers();
-  }, [page, pageSize, showDeleted, search]);
+  }, [page, pageSize, showDeleted, debouncedSearch]);
 
   useEffect(() => {
     // Reset to page 1 when page size changes

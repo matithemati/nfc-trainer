@@ -55,6 +55,7 @@ export function ClientsManagement({ lang }: { lang: string }) {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [selectedTrainerId, setSelectedTrainerId] = useState<string>("");
   const [showDeleted, setShowDeleted] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
@@ -86,7 +87,7 @@ export function ClientsManagement({ lang }: { lang: string }) {
         page: page.toString(),
         limit: pageSize.toString(),
         showDeleted: showDeleted.toString(),
-        ...(search && { search }),
+        ...(debouncedSearch && { search: debouncedSearch }),
         ...(selectedTrainerId && { trainerId: selectedTrainerId }),
       });
       const res = await fetch(`/api/admin/clients?${params}`);
@@ -105,8 +106,16 @@ export function ClientsManagement({ lang }: { lang: string }) {
   }, []);
 
   useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+      setPage(1);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  useEffect(() => {
     fetchClients();
-  }, [page, pageSize, showDeleted, search, selectedTrainerId]);
+  }, [page, pageSize, showDeleted, debouncedSearch, selectedTrainerId]);
 
   useEffect(() => {
     // Reset to page 1 when page size changes

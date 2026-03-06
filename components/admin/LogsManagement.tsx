@@ -68,6 +68,8 @@ export function LogsManagement({ lang }: { lang: string }) {
     trainerSearch: "",
     clientSearch: "",
   });
+  const [trainerSearchInput, setTrainerSearchInput] = useState("");
+  const [clientSearchInput, setClientSearchInput] = useState("");
   const [selectedLog, setSelectedLog] = useState<AdminLog | null>(null);
 
   const fetchAdmins = async () => {
@@ -112,6 +114,22 @@ export function LogsManagement({ lang }: { lang: string }) {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setFilters((prev) => ({ ...prev, trainerSearch: trainerSearchInput }));
+      setPage(1);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [trainerSearchInput]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setFilters((prev) => ({ ...prev, clientSearch: clientSearchInput }));
+      setPage(1);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [clientSearchInput]);
 
   useEffect(() => {
     fetchLogs();
@@ -214,16 +232,16 @@ export function LogsManagement({ lang }: { lang: string }) {
               <Label>{t("searchTrainersByEmail")}</Label>
               <Input
                 placeholder={t("searchTrainersByEmail")}
-                value={filters.trainerSearch}
-                onChange={(e) => handleFilterChange("trainerSearch", e.target.value)}
+                value={trainerSearchInput}
+                onChange={(e) => setTrainerSearchInput(e.target.value)}
               />
             </div>
             <div>
               <Label>{t("searchClientsByName")}</Label>
               <Input
                 placeholder={t("searchClientsByName")}
-                value={filters.clientSearch}
-                onChange={(e) => handleFilterChange("clientSearch", e.target.value)}
+                value={clientSearchInput}
+                onChange={(e) => setClientSearchInput(e.target.value)}
               />
             </div>
           </div>
