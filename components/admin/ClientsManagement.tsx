@@ -349,7 +349,24 @@ export function ClientsManagement({ lang }: { lang: string }) {
       <Card>
         <CardContent className="p-0">
           {loading ? (
-            <div className="p-4">{t("loading")}</div>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{t("clientName")}</TableHead>
+                  <TableHead>{t("selectTrainer")}</TableHead>
+                  <TableHead>{t("actions")}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {Array.from({ length: pageSize }).map((_, i) => (
+                  <TableRow key={i}>
+                    <TableCell><div className="h-4 bg-muted animate-pulse rounded w-2/3" /></TableCell>
+                    <TableCell><div className="h-4 bg-muted animate-pulse rounded w-3/4" /></TableCell>
+                    <TableCell><div className="h-4 bg-muted animate-pulse rounded w-1/4" /></TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           ) : clients.length === 0 ? (
             <div className="p-4">{t("noClients")}</div>
           ) : (

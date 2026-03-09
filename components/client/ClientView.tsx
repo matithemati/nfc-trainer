@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Spinner } from "@/components/ui/spinner";
 import { getMessages } from "@/lib/i18n";
 import { cachedFetch, invalidateCachePrefix } from "@/lib/fetch-cache";
 import { ClientMenuBar } from "./ClientMenuBar";
@@ -442,7 +443,14 @@ export function ClientView({
     setWeightHistoryYear(newDate.getFullYear());
   };
 
-  if (!client) return <div>{t("loading")}</div>;
+  if (!client) return (
+    <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="flex flex-col items-center gap-4">
+        <Spinner className="size-8" />
+        <p className="text-sm text-muted-foreground">{t("loading")}</p>
+      </div>
+    </div>
+  );
 
   // Check if trainer's membership is active
   const expirationDate = trainer?.expirationDate 

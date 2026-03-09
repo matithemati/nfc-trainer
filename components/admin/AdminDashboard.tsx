@@ -45,11 +45,12 @@ export function AdminDashboard({ lang }: { lang: string }) {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {[1, 2, 3].map((i) => (
             <Card key={i}>
-              <CardHeader>
-                <CardTitle className="h-6 bg-muted animate-pulse rounded" />
+              <CardHeader className="pb-2">
+                <div className="h-4 bg-muted animate-pulse rounded w-2/3" />
+                <div className="h-3 bg-muted animate-pulse rounded w-1/2 mt-1" />
               </CardHeader>
               <CardContent>
-                <div className="h-8 bg-muted animate-pulse rounded" />
+                <div className="h-9 bg-muted animate-pulse rounded w-1/3" />
               </CardContent>
             </Card>
           ))}

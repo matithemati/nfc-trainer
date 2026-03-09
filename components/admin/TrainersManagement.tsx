@@ -366,7 +366,30 @@ export function TrainersManagement({ lang }: { lang: string }) {
       <Card>
         <CardContent className="p-0">
           {loading ? (
-            <div className="p-4">{t("loading")}</div>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{t("trainerName")}</TableHead>
+                  <TableHead>{t("trainerEmail")}</TableHead>
+                  <TableHead>{t("trainerType")}</TableHead>
+                  <TableHead>{t("membershipExpiration")}</TableHead>
+                  <TableHead>{t("pricePerMonth")}</TableHead>
+                  <TableHead>{t("actions")}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {Array.from({ length: pageSize }).map((_, i) => (
+                  <TableRow key={i}>
+                    <TableCell><div className="h-4 bg-muted animate-pulse rounded w-3/4" /></TableCell>
+                    <TableCell><div className="h-4 bg-muted animate-pulse rounded w-full" /></TableCell>
+                    <TableCell><div className="h-4 bg-muted animate-pulse rounded w-1/2" /></TableCell>
+                    <TableCell><div className="h-4 bg-muted animate-pulse rounded w-2/3" /></TableCell>
+                    <TableCell><div className="h-4 bg-muted animate-pulse rounded w-1/3" /></TableCell>
+                    <TableCell><div className="h-4 bg-muted animate-pulse rounded w-1/4" /></TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           ) : trainers.length === 0 ? (
             <div className="p-4">{t("noTrainers")}</div>
           ) : (
