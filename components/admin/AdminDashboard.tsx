@@ -32,7 +32,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// ─── Types ───────────────────────────────────────────────────────────────────
 
 type TrainerType = { type: string; count: number };
 type ExpiringSoon = { name: string; email: string; expirationDate: string; type: string };
@@ -103,19 +103,19 @@ function readColors(): ThemeColors {
   // Two complementary sets: darker tones for light bg, lighter for dark bg
   const palette: [string, string, string, string, string] = isDark
     ? [
-        "oklch(0.68 0.11 250)",  // slate-blue
-        "oklch(0.68 0.09 170)",  // teal
-        "oklch(0.70 0.09 42)",   // amber
-        "oklch(0.63 0.09 310)",  // purple
-        "oklch(0.62 0 0)",       // gray
-      ]
+      "oklch(0.68 0.11 250)",  // slate-blue
+      "oklch(0.68 0.09 170)",  // teal
+      "oklch(0.70 0.09 42)",   // amber
+      "oklch(0.63 0.09 310)",  // purple
+      "oklch(0.62 0 0)",       // gray
+    ]
     : [
-        "oklch(0.48 0.11 250)",  // slate-blue
-        "oklch(0.48 0.09 170)",  // teal
-        "oklch(0.52 0.09 42)",   // amber
-        "oklch(0.46 0.09 310)",  // purple
-        "oklch(0.52 0 0)",       // gray
-      ];
+      "oklch(0.48 0.11 250)",  // slate-blue
+      "oklch(0.48 0.09 170)",  // teal
+      "oklch(0.52 0.09 42)",   // amber
+      "oklch(0.46 0.09 310)",  // purple
+      "oklch(0.52 0 0)",       // gray
+    ];
 
   if (typeof document === "undefined") {
     const fg = "oklch(0.145 0 0)";
