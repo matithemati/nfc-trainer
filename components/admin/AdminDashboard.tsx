@@ -185,8 +185,8 @@ function StatCard({
 }) {
   return (
     <Card>
-      <CardHeader className="flex flex-row items-start justify-between pb-2 space-y-0 gap-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground leading-tight">{title}</CardTitle>
+      <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0 gap-2">
+        <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
         <div className="relative h-7 w-7 shrink-0 rounded-md overflow-hidden flex items-center justify-center" style={{ color }}>
           <div className="absolute inset-0 opacity-15 rounded-md" style={{ background: color }} />
           <Icon className="h-3.5 w-3.5 relative z-10" />
@@ -300,14 +300,12 @@ export function AdminDashboard({ lang }: { lang: string }) {
             <StatCard
               title={t("activeTrainers")}
               value={data.activeTrainers}
-              subtitle={`${data.activeTrainers + data.expiredTrainers} ${t("trainers").toLowerCase()} ${t("totalClients").toLowerCase()}`}
               icon={UserCheck}
               color={colors.fg}
             />
             <StatCard
               title={t("expiredTrainers")}
               value={data.expiredTrainers}
-              subtitle={t("membershipStatus")}
               icon={UserX}
               color={colors.fg}
             />
@@ -320,7 +318,6 @@ export function AdminDashboard({ lang }: { lang: string }) {
             <StatCard
               title={t("totalOperations")}
               value={totalOps}
-              subtitle={t("activityLast30Days")}
               icon={Activity}
               color={colors.fg}
             />
