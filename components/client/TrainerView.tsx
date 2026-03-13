@@ -141,6 +141,8 @@ export function TrainerView({
   } | null>(null);
   const [clientActiveTab, setClientActiveTab] = useState<"plans" | "workouts" | "history" | "progress">("workouts");
   const [progressSubTab, setProgressSubTab] = useState<"weight" | "dimensions">("weight");
+  const [dimChartMonth, setDimChartMonth] = useState(new Date().getMonth());
+  const [dimChartYear, setDimChartYear] = useState(new Date().getFullYear());
   const [clientWeights, setClientWeights] = useState<WeightPoint[]>([]);
   const [clientDimensions, setClientDimensions] = useState<DimensionEntry[]>([]);
   const [exerciseSets, setExerciseSets] = useState<ExerciseSet[]>([]);
@@ -738,25 +740,25 @@ export function TrainerView({
 
       {/* Top-level tabs */}
       <div className="overflow-x-auto w-full">
-      <div className="flex items-center gap-1 p-1 bg-muted rounded-lg w-fit">
-        {(["clients", "library", "account"] as const).map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setTrainerTab(tab)}
-            className={`flex items-center gap-1.5 px-4 py-1.5 text-sm font-medium rounded-md transition-colors whitespace-nowrap ${
-              trainerTab === tab ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            {tab === "clients" ? (
-              <><Users className="size-3.5" /><span className="ml-1">{t("clients")}</span></>
-            ) : tab === "library" ? (
-              <><Dumbbell className="size-3.5" /><span className="ml-1">{t("exercisesTab")}</span></>
-            ) : (
-              <><User className="size-3.5" /><span className="ml-1">{t("account")}</span></>
-            )}
-          </button>
-        ))}
-      </div>
+        <div className="flex gap-2 border-b bg-card min-w-max rounded-t-xl">
+          {(["clients", "library", "account"] as const).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setTrainerTab(tab)}
+              className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium transition-colors whitespace-nowrap rounded-t-lg cursor-pointer ${
+                trainerTab === tab ? "border-b-2 border-primary text-foreground font-semibold bg-muted/30" : "text-foreground/70 hover:text-foreground hover:bg-muted/50"
+              }`}
+            >
+              {tab === "clients" ? (
+                <><Users className="size-3.5" /><span className="ml-1">{t("clients")}</span></>
+              ) : tab === "library" ? (
+                <><Dumbbell className="size-3.5" /><span className="ml-1">{t("exercisesTab")}</span></>
+              ) : (
+                <><User className="size-3.5" /><span className="ml-1">{t("account")}</span></>
+              )}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* TAB: Clients */}
@@ -865,13 +867,13 @@ export function TrainerView({
                   </a>
                 </div>
                 <div className="overflow-x-auto -mx-2 px-2 pt-2">
-                  <div className="flex gap-1 p-1 bg-muted rounded-lg min-w-max">
+                  <div className="flex gap-2 border-b bg-card min-w-max rounded-t-xl">
                     {(["workouts", "history", "progress", "plans"] as const).map((tab) => (
                       <button
                         key={tab}
                         onClick={() => setClientActiveTab(tab)}
-                        className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors whitespace-nowrap ${
-                          clientActiveTab === tab ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                        className={`px-4 py-2 text-sm font-medium transition-colors whitespace-nowrap rounded-t-lg cursor-pointer ${
+                          clientActiveTab === tab ? "border-b-2 border-primary text-foreground font-semibold bg-muted/30" : "text-foreground/70 hover:text-foreground hover:bg-muted/50"
                         }`}
                       >
                         {tab === "workouts" ? t("addWorkout") : tab === "history" ? t("workoutHistory") : tab === "progress" ? t("progress") : `${t("workoutsPlan")} & ${t("dietPlan")}`}
@@ -1141,13 +1143,13 @@ export function TrainerView({
                 {/* PROGRESS TAB */}
                 {clientActiveTab === "progress" && (
                   <div className="space-y-3">
-                    <div className="flex gap-1 p-1 bg-muted rounded-lg w-fit">
+                    <div className="flex gap-1 border-b">
                       {(["weight", "dimensions"] as const).map((sub) => (
                         <button
                           key={sub}
                           onClick={() => setProgressSubTab(sub)}
-                          className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors whitespace-nowrap ${
-                            progressSubTab === sub ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                          className={`px-4 py-2 text-sm font-medium transition-colors whitespace-nowrap rounded-t-lg cursor-pointer ${
+                            progressSubTab === sub ? "border-b-2 border-primary text-foreground font-semibold bg-muted/30" : "text-foreground/70 hover:text-foreground hover:bg-muted/50"
                           }`}
                         >
                           {sub === "weight" ? t("weightTab") : t("dimensions")}
@@ -1162,21 +1164,35 @@ export function TrainerView({
                     {progressSubTab === "dimensions" && (
                       clientDimensions.length > 0 ? (
                         <>
-                          <DimensionsChart data={clientDimensions} lang={lang} />
-                          <div className="mt-4 space-y-2 max-h-[250px] overflow-y-auto">
-                            {clientDimensionsDesc.map((entry) => (
-                              <div key={entry._id || entry.date} className="p-2 border rounded-lg">
-                                <div className="text-xs font-medium mb-1">{new Date(entry.date).toLocaleDateString(currentLang === "pl" ? "pl-PL" : "en-US", { year: "numeric", month: "long", day: "numeric" })}</div>
-                                <div className="grid grid-cols-3 gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
-                                  {(["neck", "chest", "waist", "hips", "bicep", "thigh", "calf"] as const).map((field) =>
-                                    entry[field] !== undefined ? (
-                                      <span key={field}>{t(`dimension${field.charAt(0).toUpperCase() + field.slice(1)}`)}: <span className="font-medium text-foreground">{entry[field]} {t("dimensionsUnit")}</span></span>
-                                    ) : null
-                                  )}
+                          <DimensionsChart
+                            data={clientDimensions}
+                            lang={lang}
+                            month={dimChartMonth}
+                            year={dimChartYear}
+                            onMonthChange={(m, y) => { setDimChartMonth(m); setDimChartYear(y); }}
+                          />
+                          {clientDimensionsDesc.filter((e) => {
+                            const d = new Date(e.date);
+                            return d.getMonth() === dimChartMonth && d.getFullYear() === dimChartYear;
+                          }).length > 0 && (
+                            <div className="mt-4 space-y-2 max-h-[250px] overflow-y-auto">
+                              {clientDimensionsDesc.filter((e) => {
+                                const d = new Date(e.date);
+                                return d.getMonth() === dimChartMonth && d.getFullYear() === dimChartYear;
+                              }).map((entry) => (
+                                <div key={entry._id || entry.date} className="p-2 border rounded-lg">
+                                  <div className="text-xs font-medium mb-1">{new Date(entry.date).toLocaleDateString(currentLang === "pl" ? "pl-PL" : "en-US", { year: "numeric", month: "long", day: "numeric" })}</div>
+                                  <div className="grid grid-cols-3 gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
+                                    {(["neck", "chest", "waist", "hips", "bicep", "thigh", "calf"] as const).map((field) =>
+                                      entry[field] !== undefined ? (
+                                        <span key={field}>{t(`dimension${field.charAt(0).toUpperCase() + field.slice(1)}`)}: <span className="font-medium text-foreground">{entry[field]} {t("dimensionsUnit")}</span></span>
+                                      ) : null
+                                    )}
+                                  </div>
                                 </div>
-                              </div>
-                            ))}
-                          </div>
+                              ))}
+                            </div>
+                          )}
                         </>
                       ) : (
                         <p className="text-muted-foreground text-sm text-center py-8">{t("noDimensionsData")}</p>

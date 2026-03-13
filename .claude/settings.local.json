@@ -3,7 +3,8 @@
     "allow": [
       "Bash(xargs grep:*)",
       "Bash(xargs ls:*)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(grep -rl \"Tabs\\\\|tab\" c:/Users/Mateusz/WebstormProjects/nfc-trainer/components --include=*.tsx)"
     ]
   }
 }

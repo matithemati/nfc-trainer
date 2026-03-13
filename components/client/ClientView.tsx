@@ -122,6 +122,8 @@ export function ClientView({
   }, []);
   const [activeTab, setActiveTab] = useState<"workouts" | "progress" | "plans">("workouts");
   const [progressSubTab, setProgressSubTab] = useState<"weight" | "dimensions">("weight");
+  const [dimChartMonth, setDimChartMonth] = useState(new Date().getMonth());
+  const [dimChartYear, setDimChartYear] = useState(new Date().getFullYear());
   const [dimensions, setDimensions] = useState<DimensionEntry[]>([]);
   const [newDimension, setNewDimension] = useState<DimensionMeasurements>({});
   const [dimensionDate, setDimensionDate] = useState(getTodayDate());
@@ -537,7 +539,7 @@ export function ClientView({
         <div className="flex gap-2 border-b bg-card min-w-max rounded-t-xl">
           <button
             onClick={() => setActiveTab("workouts")}
-            className={`px-4 py-2 text-sm font-medium transition-colors whitespace-nowrap rounded-t-lg ${
+            className={`px-4 py-2 text-sm font-medium transition-colors whitespace-nowrap rounded-t-lg cursor-pointer ${
               activeTab === "workouts"
                 ? "border-b-2 border-primary text-foreground font-semibold bg-muted/30"
                 : "text-foreground/70 hover:text-foreground hover:bg-muted/50"
@@ -547,7 +549,7 @@ export function ClientView({
           </button>
           <button
             onClick={() => setActiveTab("progress")}
-            className={`px-4 py-2 text-sm font-medium transition-colors whitespace-nowrap rounded-t-lg ${
+            className={`px-4 py-2 text-sm font-medium transition-colors whitespace-nowrap rounded-t-lg cursor-pointer ${
               activeTab === "progress"
                 ? "border-b-2 border-primary text-foreground font-semibold bg-muted/30"
                 : "text-foreground/70 hover:text-foreground hover:bg-muted/50"
@@ -557,7 +559,7 @@ export function ClientView({
           </button>
           <button
             onClick={() => setActiveTab("plans")}
-            className={`px-4 py-2 text-sm font-medium transition-colors whitespace-nowrap rounded-t-lg ${
+            className={`px-4 py-2 text-sm font-medium transition-colors whitespace-nowrap rounded-t-lg cursor-pointer ${
               activeTab === "plans"
                 ? "border-b-2 border-primary text-foreground font-semibold bg-muted/30"
                 : "text-foreground/70 hover:text-foreground hover:bg-muted/50"
@@ -978,7 +980,7 @@ export function ClientView({
           <div className="flex gap-1 border-b">
             <button
               onClick={() => setProgressSubTab("weight")}
-              className={`px-4 py-2 text-sm font-medium transition-colors whitespace-nowrap rounded-t-lg ${
+              className={`px-4 py-2 text-sm font-medium transition-colors whitespace-nowrap rounded-t-lg cursor-pointer ${
                 progressSubTab === "weight"
                   ? "border-b-2 border-primary text-foreground font-semibold bg-muted/30"
                   : "text-foreground/70 hover:text-foreground hover:bg-muted/50"
@@ -988,7 +990,7 @@ export function ClientView({
             </button>
             <button
               onClick={() => setProgressSubTab("dimensions")}
-              className={`px-4 py-2 text-sm font-medium transition-colors whitespace-nowrap rounded-t-lg ${
+              className={`px-4 py-2 text-sm font-medium transition-colors whitespace-nowrap rounded-t-lg cursor-pointer ${
                 progressSubTab === "dimensions"
                   ? "border-b-2 border-primary text-foreground font-semibold bg-muted/30"
                   : "text-foreground/70 hover:text-foreground hover:bg-muted/50"
@@ -1208,12 +1210,18 @@ export function ClientView({
                   </CardContent>
                 </Card>
 
-                {dimensionHistoryData.length > 0 && (
+                {dimensionHistoryData.filter((e) => {
+                  const d = new Date(e.date);
+                  return d.getMonth() === dimChartMonth && d.getFullYear() === dimChartYear;
+                }).length > 0 && (
                   <Card>
                     <CardHeader><CardTitle>{t("dimensionsHistory")}</CardTitle></CardHeader>
                     <CardContent>
                       <div className="h-[350px] overflow-y-auto space-y-2">
-                        {dimensionHistoryData.map((entry) => (
+                        {dimensionHistoryData.filter((e) => {
+                          const d = new Date(e.date);
+                          return d.getMonth() === dimChartMonth && d.getFullYear() === dimChartYear;
+                        }).map((entry) => (
                           <div key={entry._id || entry.date} className="p-3 border rounded-lg">
                             <div className="flex items-center justify-between mb-1">
                               <div className="font-medium text-sm">{new Date(entry.date).toLocaleDateString(currentLang === "pl" ? "pl-PL" : "en-US", { year: "numeric", month: "long", day: "numeric" })}</div>
@@ -1241,7 +1249,13 @@ export function ClientView({
                 <CardHeader><CardTitle>{t("dimensions")}</CardTitle></CardHeader>
                 <CardContent>
                   {dimensions.length > 0 ? (
-                    <DimensionsChart data={dimensions} lang={lang} />
+                    <DimensionsChart
+                      data={dimensions}
+                      lang={lang}
+                      month={dimChartMonth}
+                      year={dimChartYear}
+                      onMonthChange={(m, y) => { setDimChartMonth(m); setDimChartYear(y); }}
+                    />
                   ) : (
                     <p className="text-muted-foreground text-center py-8">{t("noDimensionsData")}</p>
                   )}

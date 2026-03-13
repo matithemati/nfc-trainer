@@ -153,10 +153,25 @@ export function WeightChart({ data, lang }: { data: WeightPoint[]; lang?: string
   );
 }
 
-export function DimensionsChart({ data, lang }: { data: DimensionEntry[]; lang?: string }) {
+export function DimensionsChart({
+  data,
+  lang,
+  month,
+  year,
+  onMonthChange,
+}: {
+  data: DimensionEntry[];
+  lang?: string;
+  month?: number;
+  year?: number;
+  onMonthChange?: (month: number, year: number) => void;
+}) {
   const { t, lang: currentLang } = getMessages(lang);
-  const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
-  const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
+  const [internalMonth, setInternalMonth] = useState(new Date().getMonth());
+  const [internalYear, setInternalYear] = useState(new Date().getFullYear());
+
+  const currentMonth = month !== undefined ? month : internalMonth;
+  const currentYear = year !== undefined ? year : internalYear;
 
   const locale = currentLang === "pl" ? "pl-PL" : "en-US";
 
@@ -180,8 +195,24 @@ export function DimensionsChart({ data, lang }: { data: DimensionEntry[]; lang?:
 
   const navigateMonth = (direction: number) => {
     const newDate = new Date(currentYear, currentMonth + direction, 1);
-    setCurrentMonth(newDate.getMonth());
-    setCurrentYear(newDate.getFullYear());
+    const m = newDate.getMonth();
+    const y = newDate.getFullYear();
+    if (onMonthChange) {
+      onMonthChange(m, y);
+    } else {
+      setInternalMonth(m);
+      setInternalYear(y);
+    }
+  };
+
+  const goToToday = () => {
+    const today = new Date();
+    if (onMonthChange) {
+      onMonthChange(today.getMonth(), today.getFullYear());
+    } else {
+      setInternalMonth(today.getMonth());
+      setInternalYear(today.getFullYear());
+    }
   };
 
   const monthName = new Date(currentYear, currentMonth, 1).toLocaleDateString(locale, {
@@ -200,16 +231,7 @@ export function DimensionsChart({ data, lang }: { data: DimensionEntry[]; lang?:
             <ChevronLeft className="size-4 md:hidden" />
             <span className="hidden md:inline">{t("previous")}</span>
           </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              const today = new Date();
-              setCurrentMonth(today.getMonth());
-              setCurrentYear(today.getFullYear());
-            }}
-            title={t("today")}
-          >
+          <Button variant="outline" size="sm" onClick={goToToday} title={t("today")}>
             <Calendar className="size-4" />
             <span className="hidden md:inline">{t("today")}</span>
           </Button>
