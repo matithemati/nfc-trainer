@@ -42,6 +42,7 @@ type ExerciseSetExercise = {
   defaultSets: number;
   defaultReps: number;
   defaultWeight?: number;
+  defaultSetDetails?: { reps: number; weight?: number }[];
 };
 
 type ExerciseSet = {
@@ -673,7 +674,7 @@ export function ClientView({
                                   sets: ex.defaultSets,
                                   reps: ex.defaultReps,
                                   weight: ex.defaultWeight,
-                                  setDetails: makeSetDetails(ex.defaultSets, ex.defaultReps, ex.defaultWeight),
+                                  setDetails: ex.defaultSetDetails ?? makeSetDetails(ex.defaultSets, ex.defaultReps, ex.defaultWeight),
                                 })));
                               }
                             } else {
@@ -698,7 +699,7 @@ export function ClientView({
                               <div className="flex items-center gap-2">
                                 <div className="text-sm font-medium flex-1 truncate">{ex.name}</div>
                                 <div className="flex items-center gap-1 shrink-0">
-                                  <Label className="text-xs text-muted-foreground">{t("sets")}:</Label>
+                                  <span className="text-xs text-muted-foreground leading-none">{t("sets")}:</span>
                                   <Input
                                     type="number"
                                     min={1}
@@ -916,7 +917,7 @@ export function ClientView({
                                                       sets: ex.defaultSets,
                                                       reps: ex.defaultReps,
                                                       weight: ex.defaultWeight,
-                                                      setDetails: makeSetDetails(ex.defaultSets, ex.defaultReps, ex.defaultWeight),
+                                                      setDetails: ex.defaultSetDetails ?? makeSetDetails(ex.defaultSets, ex.defaultReps, ex.defaultWeight),
                                                     })));
                                                   }
                                                 }
@@ -936,7 +937,7 @@ export function ClientView({
                                               <div className="flex items-center gap-2">
                                                 <span className="text-sm font-medium flex-1 truncate">{ex.name}</span>
                                                 <div className="flex items-center gap-1 shrink-0">
-                                                  <Label className="text-xs text-muted-foreground">{t("sets")}:</Label>
+                                                  <span className="text-xs text-muted-foreground leading-none">{t("sets")}:</span>
                                                   <Input
                                                     type="number"
                                                     min={1}

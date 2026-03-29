@@ -56,6 +56,7 @@ type ExerciseSetExercise = {
   defaultSets: number;
   defaultReps: number;
   defaultWeight?: number;
+  defaultSetDetails?: { reps: number; weight?: number }[];
 };
 
 type ExerciseSet = {
@@ -168,9 +169,9 @@ export function TrainerView({
   const [showAddSet, setShowAddSet] = useState(false);
   const [newSetName, setNewSetName] = useState("");
   const [newSetExercises, setNewSetExercises] = useState<ExerciseSetExercise[]>([]);
-  const [newSetExercise, setNewSetExercise] = useState<ExerciseSetExercise>({ name: "", defaultSets: 3, defaultReps: 10, defaultWeight: undefined });
+  const [newSetExercise, setNewSetExercise] = useState<ExerciseSetExercise>({ name: "", defaultSets: 3, defaultReps: 10, defaultWeight: undefined, defaultSetDetails: makeSetDetails(3, 10, undefined) });
   const [editingSet, setEditingSet] = useState<(ExerciseSet & { _id: string }) | null>(null);
-  const [editingSetExercise, setEditingSetExercise] = useState<ExerciseSetExercise>({ name: "", defaultSets: 3, defaultReps: 10, defaultWeight: undefined });
+  const [editingSetExercise, setEditingSetExercise] = useState<ExerciseSetExercise>({ name: "", defaultSets: 3, defaultReps: 10, defaultWeight: undefined, defaultSetDetails: makeSetDetails(3, 10, undefined) });
   const [selectedExerciseSetId, setSelectedExerciseSetId] = useState("");
   const [newSetClientId, setNewSetClientId] = useState("");
   const [showAddClient, setShowAddClient] = useState(false);
@@ -949,7 +950,7 @@ export function TrainerView({
                                   if (set) {
                                     setWorkoutExercises(set.exercises.map((ex) => ({
                                       name: ex.name, sets: ex.defaultSets, reps: ex.defaultReps, weight: ex.defaultWeight,
-                                      setDetails: makeSetDetails(ex.defaultSets, ex.defaultReps, ex.defaultWeight),
+                                      setDetails: ex.defaultSetDetails ?? makeSetDetails(ex.defaultSets, ex.defaultReps, ex.defaultWeight),
                                     })));
                                   }
                                 }
@@ -970,7 +971,7 @@ export function TrainerView({
                                 <div className="flex items-center gap-2">
                                   <span className="text-sm font-medium flex-1 truncate">{ex.name}</span>
                                   <div className="flex items-center gap-1 shrink-0">
-                                    <Label className="text-xs text-muted-foreground">{t("sets")}:</Label>
+                                    <span className="text-xs text-muted-foreground leading-none">{t("sets")}:</span>
                                     <Input
                                       type="number"
                                       min={1}
@@ -1128,7 +1129,7 @@ export function TrainerView({
                                                         <div className="flex items-center gap-2">
                                                           <span className="text-sm font-medium flex-1 truncate">{ex.name}</span>
                                                           <div className="flex items-center gap-1 shrink-0">
-                                                            <Label className="text-xs text-muted-foreground">{t("sets")}:</Label>
+                                                            <span className="text-xs text-muted-foreground leading-none">{t("sets")}:</span>
                                                             <Input
                                                               type="number"
                                                               min={1}
@@ -1245,7 +1246,7 @@ export function TrainerView({
                                                             {exerciseNames.map((name) => (<option key={name} value={name}>{name}</option>))}
                                                           </select>
                                                           <div className="flex items-center gap-2">
-                                                            <Label className="text-xs text-muted-foreground shrink-0">{t("sets")}:</Label>
+                                                            <span className="text-xs text-muted-foreground leading-none shrink-0">{t("sets")}:</span>
                                                             <Input
                                                               type="number"
                                                               min={1}
@@ -1520,27 +1521,83 @@ export function TrainerView({
                       <div className="space-y-1 max-h-[120px] overflow-y-auto">
                         {newSetExercises.map((ex, idx) => (
                           <div key={idx} className="flex items-center justify-between p-2 border rounded text-sm">
-                            <span>{ex.name} — {ex.defaultSets}×{ex.defaultReps}{ex.defaultWeight ? ` @ ${ex.defaultWeight}${t("weightUnit")}` : ""}</span>
+                            <div>
+                              <span className="font-medium">{ex.name}</span>
+                              <span className="ml-2 text-xs text-muted-foreground">
+                                {ex.defaultSetDetails
+                                  ? ex.defaultSetDetails.map((sd, i) => `${t("setLabel")} ${i+1}: ${sd.reps}${sd.weight ? ` @ ${sd.weight}${t("weightUnit")}` : ""}`).join(" · ")
+                                  : `${ex.defaultSets}×${ex.defaultReps}${ex.defaultWeight ? ` @ ${ex.defaultWeight}${t("weightUnit")}` : ""}`}
+                              </span>
+                            </div>
                             <Button variant="ghost" size="sm" onClick={() => setNewSetExercises((prev) => prev.filter((_, i) => i !== idx))}><Trash2 className="size-4" /></Button>
                           </div>
                         ))}
                       </div>
                     )}
                     <div className="border-t pt-2 space-y-2">
-                      <Label className="text-xs text-muted-foreground">{t("addExerciseToSet")}</Label>
-                      <select value={newSetExercise.name} onChange={(e) => setNewSetExercise((ex) => ({ ...ex, name: e.target.value }))} className="w-full px-3 py-2 border rounded-md bg-background text-foreground">
+                      <span className="text-xs text-muted-foreground">{t("addExerciseToSet")}</span>
+                      <select value={newSetExercise.name} onChange={(e) => setNewSetExercise((ex) => ({ ...ex, name: e.target.value }))} className="w-full px-3 py-2 border rounded-md bg-background text-foreground text-sm">
                         <option value="">{t("selectExercise")}</option>
                         {exerciseNames.map((name) => (<option key={name} value={name}>{name}</option>))}
                       </select>
-                      <div className="grid grid-cols-3 gap-2">
-                        <Input type="number" value={newSetExercise.defaultSets} onChange={(e) => setNewSetExercise((ex) => ({ ...ex, defaultSets: Number(e.target.value) }))} placeholder={t("sets")} />
-                        <Input type="number" value={newSetExercise.defaultReps} onChange={(e) => setNewSetExercise((ex) => ({ ...ex, defaultReps: Number(e.target.value) }))} placeholder={t("reps")} />
-                        <Input type="number" step="0.1" value={newSetExercise.defaultWeight || ""} onChange={(e) => setNewSetExercise((ex) => ({ ...ex, defaultWeight: e.target.value ? Number(e.target.value) : undefined }))} placeholder={`${t("weightUnit")} (${t("optional")})`} />
+                      <div className="border rounded p-2 space-y-1.5">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs text-muted-foreground leading-none">{t("sets")}:</span>
+                          <Input
+                            type="number"
+                            min={1}
+                            value={newSetExercise.defaultSets}
+                            onChange={(e) => {
+                              const n = Math.max(1, Number(e.target.value));
+                              setNewSetExercise((ex) => {
+                                const details = ex.defaultSetDetails ?? makeSetDetails(ex.defaultSets, ex.defaultReps, ex.defaultWeight);
+                                return { ...ex, defaultSets: n, defaultSetDetails: resizeSetDetails(details, n, ex.defaultReps, ex.defaultWeight) };
+                              });
+                            }}
+                            className="h-7 w-14 text-xs text-center px-1"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          {(newSetExercise.defaultSetDetails ?? makeSetDetails(newSetExercise.defaultSets, newSetExercise.defaultReps, newSetExercise.defaultWeight)).map((sd, sIdx) => (
+                            <div key={sIdx} className="grid grid-cols-[48px_1fr_1fr] gap-1.5 items-end">
+                              <span className="text-xs text-muted-foreground pb-1.5">{t("setLabel")} {sIdx + 1}</span>
+                              <div>
+                                {sIdx === 0 && <Label className="text-xs mb-0.5 block">{t("reps")}</Label>}
+                                <Input
+                                  type="number"
+                                  min={1}
+                                  value={sd.reps}
+                                  onChange={(e) => setNewSetExercise((ex) => {
+                                    const details = [...(ex.defaultSetDetails ?? makeSetDetails(ex.defaultSets, ex.defaultReps, ex.defaultWeight))];
+                                    details[sIdx] = { ...details[sIdx], reps: Number(e.target.value) };
+                                    return { ...ex, defaultSetDetails: details };
+                                  })}
+                                  className="h-7 text-xs"
+                                />
+                              </div>
+                              <div>
+                                {sIdx === 0 && <Label className="text-xs mb-0.5 block">{t("weight")} ({t("optional")})</Label>}
+                                <Input
+                                  type="number"
+                                  step="0.1"
+                                  value={sd.weight ?? ""}
+                                  onChange={(e) => setNewSetExercise((ex) => {
+                                    const details = [...(ex.defaultSetDetails ?? makeSetDetails(ex.defaultSets, ex.defaultReps, ex.defaultWeight))];
+                                    details[sIdx] = { ...details[sIdx], weight: e.target.value ? Number(e.target.value) : undefined };
+                                    return { ...ex, defaultSetDetails: details };
+                                  })}
+                                  className="h-7 text-xs"
+                                  placeholder="kg"
+                                />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                       <Button size="sm" variant="outline" className="w-full" disabled={!newSetExercise.name.trim()} onClick={() => {
                         if (!newSetExercise.name.trim()) return;
                         setNewSetExercises((prev) => [...prev, { ...newSetExercise }]);
-                        setNewSetExercise({ name: "", defaultSets: 3, defaultReps: 10, defaultWeight: undefined });
+                        setNewSetExercise({ name: "", defaultSets: 3, defaultReps: 10, defaultWeight: undefined, defaultSetDetails: makeSetDetails(3, 10, undefined) });
                       }}>
                         <Plus className="size-4" /><span className="ml-1">{t("addExercise")}</span>
                       </Button>
@@ -1549,7 +1606,7 @@ export function TrainerView({
                       <Button size="sm" className="flex-1" disabled={!newSetName.trim() || newSetExercises.length === 0} onClick={createExerciseSet}>
                         <Save className="size-4" /><span className="ml-1">{t("saveSet")}</span>
                       </Button>
-                      <Button size="sm" variant="outline" onClick={() => { setShowAddSet(false); setNewSetName(""); setNewSetExercises([]); setNewSetClientId(""); setNewSetExercise({ name: "", defaultSets: 3, defaultReps: 10, defaultWeight: undefined }); }}>
+                      <Button size="sm" variant="outline" onClick={() => { setShowAddSet(false); setNewSetName(""); setNewSetExercises([]); setNewSetClientId(""); setNewSetExercise({ name: "", defaultSets: 3, defaultReps: 10, defaultWeight: undefined, defaultSetDetails: makeSetDetails(3, 10, undefined) }); }}>
                         <X className="size-4" /><span className="ml-1">{t("cancel")}</span>
                       </Button>
                     </div>
@@ -1565,27 +1622,83 @@ export function TrainerView({
                           <div className="space-y-1 max-h-[120px] overflow-y-auto">
                             {editingSet.exercises.map((ex, idx) => (
                               <div key={idx} className="flex items-center justify-between p-1 border rounded text-sm">
-                                <span>{ex.name} — {ex.defaultSets}×{ex.defaultReps}{ex.defaultWeight ? ` @ ${ex.defaultWeight}${t("weightUnit")}` : ""}</span>
-                                <Button variant="ghost" size="sm" onClick={() => { const s = editingSet; if (s) setEditingSet({ ...s, exercises: s.exercises.filter((_, i) => i !== idx) }); }}><Trash2 className="size-3" /></Button>
+                                <span className="font-medium">{ex.name}</span>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs text-muted-foreground">
+                                    {ex.defaultSetDetails
+                                      ? ex.defaultSetDetails.map((sd, i) => `${t("setLabel")} ${i+1}: ${sd.reps}${sd.weight ? ` @ ${sd.weight}${t("weightUnit")}` : ""}`).join(" · ")
+                                      : `${ex.defaultSets}×${ex.defaultReps}${ex.defaultWeight ? ` @ ${ex.defaultWeight}${t("weightUnit")}` : ""}`}
+                                  </span>
+                                  <Button variant="ghost" size="sm" onClick={() => { const s = editingSet; if (s) setEditingSet({ ...s, exercises: s.exercises.filter((_, i) => i !== idx) }); }}><Trash2 className="size-3" /></Button>
+                                </div>
                               </div>
                             ))}
                           </div>
                           <div className="border-t pt-2 space-y-2">
-                            <Label className="text-xs text-muted-foreground">{t("addExercise")}</Label>
-                            <select value={editingSetExercise.name} onChange={(e) => setEditingSetExercise((ex) => ({ ...ex, name: e.target.value }))} className="w-full px-3 py-2 border rounded-md bg-background text-foreground">
+                            <span className="text-xs text-muted-foreground">{t("addExerciseToSet")}</span>
+                            <select value={editingSetExercise.name} onChange={(e) => setEditingSetExercise((ex) => ({ ...ex, name: e.target.value }))} className="w-full px-3 py-2 border rounded-md bg-background text-foreground text-sm">
                               <option value="">{t("selectExercise")}</option>
                               {exerciseNames.map((name) => (<option key={name} value={name}>{name}</option>))}
                             </select>
-                            <div className="grid grid-cols-3 gap-2">
-                              <Input type="number" value={editingSetExercise.defaultSets} onChange={(e) => setEditingSetExercise((ex) => ({ ...ex, defaultSets: Number(e.target.value) }))} placeholder={t("sets")} />
-                              <Input type="number" value={editingSetExercise.defaultReps} onChange={(e) => setEditingSetExercise((ex) => ({ ...ex, defaultReps: Number(e.target.value) }))} placeholder={t("reps")} />
-                              <Input type="number" step="0.1" value={editingSetExercise.defaultWeight || ""} onChange={(e) => setEditingSetExercise((ex) => ({ ...ex, defaultWeight: e.target.value ? Number(e.target.value) : undefined }))} placeholder={t("weightUnit")} />
+                            <div className="border rounded p-2 space-y-1.5">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-xs text-muted-foreground leading-none">{t("sets")}:</span>
+                                <Input
+                                  type="number"
+                                  min={1}
+                                  value={editingSetExercise.defaultSets}
+                                  onChange={(e) => {
+                                    const n = Math.max(1, Number(e.target.value));
+                                    setEditingSetExercise((ex) => {
+                                      const details = ex.defaultSetDetails ?? makeSetDetails(ex.defaultSets, ex.defaultReps, ex.defaultWeight);
+                                      return { ...ex, defaultSets: n, defaultSetDetails: resizeSetDetails(details, n, ex.defaultReps, ex.defaultWeight) };
+                                    });
+                                  }}
+                                  className="h-7 w-14 text-xs text-center px-1"
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                {(editingSetExercise.defaultSetDetails ?? makeSetDetails(editingSetExercise.defaultSets, editingSetExercise.defaultReps, editingSetExercise.defaultWeight)).map((sd, sIdx) => (
+                                  <div key={sIdx} className="grid grid-cols-[48px_1fr_1fr] gap-1.5 items-end">
+                                    <span className="text-xs text-muted-foreground pb-1.5">{t("setLabel")} {sIdx + 1}</span>
+                                    <div>
+                                      {sIdx === 0 && <Label className="text-xs mb-0.5 block">{t("reps")}</Label>}
+                                      <Input
+                                        type="number"
+                                        min={1}
+                                        value={sd.reps}
+                                        onChange={(e) => setEditingSetExercise((ex) => {
+                                          const details = [...(ex.defaultSetDetails ?? makeSetDetails(ex.defaultSets, ex.defaultReps, ex.defaultWeight))];
+                                          details[sIdx] = { ...details[sIdx], reps: Number(e.target.value) };
+                                          return { ...ex, defaultSetDetails: details };
+                                        })}
+                                        className="h-7 text-xs"
+                                      />
+                                    </div>
+                                    <div>
+                                      {sIdx === 0 && <Label className="text-xs mb-0.5 block">{t("weight")} ({t("optional")})</Label>}
+                                      <Input
+                                        type="number"
+                                        step="0.1"
+                                        value={sd.weight ?? ""}
+                                        onChange={(e) => setEditingSetExercise((ex) => {
+                                          const details = [...(ex.defaultSetDetails ?? makeSetDetails(ex.defaultSets, ex.defaultReps, ex.defaultWeight))];
+                                          details[sIdx] = { ...details[sIdx], weight: e.target.value ? Number(e.target.value) : undefined };
+                                          return { ...ex, defaultSetDetails: details };
+                                        })}
+                                        className="h-7 text-xs"
+                                        placeholder="kg"
+                                      />
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
                             </div>
                             <Button size="sm" variant="outline" className="w-full" disabled={!editingSetExercise.name.trim()} onClick={() => {
                               if (!editingSetExercise.name.trim() || !editingSet) return;
                               const s = editingSet;
                               setEditingSet({ ...s, exercises: [...s.exercises, { ...editingSetExercise }] });
-                              setEditingSetExercise({ name: "", defaultSets: 3, defaultReps: 10, defaultWeight: undefined });
+                              setEditingSetExercise({ name: "", defaultSets: 3, defaultReps: 10, defaultWeight: undefined, defaultSetDetails: makeSetDetails(3, 10, undefined) });
                             }}>
                               <Plus className="size-4" /><span className="ml-1">{t("addExercise")}</span>
                             </Button>

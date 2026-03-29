@@ -123,9 +123,9 @@ export function RpeSelector({ value, onChange, lang }: RpeSelectorProps) {
   return (
     <div className="space-y-1.5">
       <div className="flex items-center gap-1.5">
-        <Label className="text-xs text-muted-foreground font-medium">
+        <span className="text-xs text-muted-foreground font-medium leading-none">
           RPE <span className="font-normal">({t("optional")})</span>
-        </Label>
+        </span>
         <RpeInfoDialog lang={lang} />
       </div>
       <div className="flex flex-wrap gap-1">
