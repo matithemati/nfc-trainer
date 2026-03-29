@@ -11,6 +11,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { getMessages } from "@/lib/i18n";
 import { cachedFetch, invalidateCachePrefix } from "@/lib/fetch-cache";
 import { ClientMenuBar } from "./ClientMenuBar";
+import { RpeSelector, RpeBadge } from "./RpeSelector";
 import {
   ChevronLeft,
   ChevronRight,
@@ -76,6 +77,8 @@ type WorkoutExercise = {
   sets: number;
   reps: number;
   weight?: number;
+  setDetails?: { reps: number; weight?: number }[];
+  rpe?: string;
 };
 
 type WorkoutLog = {
@@ -83,6 +86,21 @@ type WorkoutLog = {
   clientId: string;
   date: string;
   exercises: WorkoutExercise[];
+};
+
+const makeSetDetails = (count: number, reps: number, weight?: number) =>
+  Array.from({ length: Math.max(1, count) }, () => ({ reps, weight }));
+
+const resizeSetDetails = (
+  details: { reps: number; weight?: number }[],
+  newCount: number,
+  defaultReps: number,
+  defaultWeight?: number
+): { reps: number; weight?: number }[] => {
+  const count = Math.max(1, newCount);
+  if (count <= details.length) return details.slice(0, count);
+  const last = details[details.length - 1] ?? { reps: defaultReps, weight: defaultWeight };
+  return [...details, ...Array.from({ length: count - details.length }, () => ({ ...last }))];
 };
 
 export function ClientView({
@@ -140,6 +158,7 @@ export function ClientView({
   const [editingLogDate, setEditingLogDate] = useState("");
   const [editingLogExercises, setEditingLogExercises] = useState<WorkoutExercise[]>([]);
   const [editingLogSetId, setEditingLogSetId] = useState("");
+  const [expandedExercises, setExpandedExercises] = useState<Set<string>>(new Set());
   const [weightHistoryData, setWeightHistoryData] = useState<WeightPoint[]>([]);
   const [dimensionHistoryData, setDimensionHistoryData] = useState<DimensionEntry[]>([]);
 
@@ -654,6 +673,7 @@ export function ClientView({
                                   sets: ex.defaultSets,
                                   reps: ex.defaultReps,
                                   weight: ex.defaultWeight,
+                                  setDetails: makeSetDetails(ex.defaultSets, ex.defaultReps, ex.defaultWeight),
                                 })));
                               }
                             } else {
@@ -674,48 +694,78 @@ export function ClientView({
                         <Label className="text-sm font-semibold">{t("exercises")}</Label>
                         <div className="space-y-2 max-h-[280px] overflow-y-auto">
                           {selfLogExercises.map((ex, idx) => (
-                            <div key={idx} className="border rounded p-2 space-y-1">
-                              <div className="flex items-center justify-between">
-                                <div className="text-sm font-medium">{ex.name}</div>
+                            <div key={idx} className="border rounded p-2 space-y-2">
+                              <div className="flex items-center gap-2">
+                                <div className="text-sm font-medium flex-1 truncate">{ex.name}</div>
+                                <div className="flex items-center gap-1 shrink-0">
+                                  <Label className="text-xs text-muted-foreground">{t("sets")}:</Label>
+                                  <Input
+                                    type="number"
+                                    min={1}
+                                    value={ex.sets}
+                                    onChange={(e) => {
+                                      const newCount = Math.max(1, Number(e.target.value));
+                                      setSelfLogExercises((prev) => prev.map((e2, i) => {
+                                        if (i !== idx) return e2;
+                                        const details = e2.setDetails ?? makeSetDetails(e2.sets, e2.reps, e2.weight);
+                                        return { ...e2, sets: newCount, setDetails: resizeSetDetails(details, newCount, e2.reps, e2.weight) };
+                                      }));
+                                    }}
+                                    className="h-7 w-14 text-xs text-center px-1"
+                                  />
+                                </div>
                                 <Button
                                   variant="ghost"
                                   size="sm"
+                                  className="h-7 w-7 p-0 shrink-0"
                                   onClick={() => setSelfLogExercises((prev) => prev.filter((_, i) => i !== idx))}
                                 >
-                                  <Trash2 className="size-4" />
+                                  <Trash2 className="size-3.5" />
                                 </Button>
                               </div>
-                              <div className="grid grid-cols-3 gap-2">
-                                <div>
-                                  <Label className="text-xs">{t("sets")}</Label>
-                                  <Input
-                                    type="number"
-                                    value={ex.sets}
-                                    onChange={(e) => setSelfLogExercises((prev) => prev.map((e2, i) => i === idx ? { ...e2, sets: Number(e.target.value) } : e2))}
-                                    className="h-8 text-sm"
-                                  />
-                                </div>
-                                <div>
-                                  <Label className="text-xs">{t("reps")}</Label>
-                                  <Input
-                                    type="number"
-                                    value={ex.reps}
-                                    onChange={(e) => setSelfLogExercises((prev) => prev.map((e2, i) => i === idx ? { ...e2, reps: Number(e.target.value) } : e2))}
-                                    className="h-8 text-sm"
-                                  />
-                                </div>
-                                <div>
-                                  <Label className="text-xs">{t("weight")} ({t("optional")})</Label>
-                                  <Input
-                                    type="number"
-                                    step="0.1"
-                                    value={ex.weight || ""}
-                                    onChange={(e) => setSelfLogExercises((prev) => prev.map((e2, i) => i === idx ? { ...e2, weight: e.target.value ? Number(e.target.value) : undefined } : e2))}
-                                    className="h-8 text-sm"
-                                    placeholder="kg"
-                                  />
-                                </div>
+                              <div className="space-y-1">
+                                {(ex.setDetails ?? makeSetDetails(ex.sets, ex.reps, ex.weight)).map((sd, sIdx) => (
+                                  <div key={sIdx} className="grid grid-cols-[48px_1fr_1fr] gap-1.5 items-end">
+                                    <span className="text-xs text-muted-foreground pb-1.5">{t("setLabel")} {sIdx + 1}</span>
+                                    <div>
+                                      {sIdx === 0 && <Label className="text-xs mb-0.5 block">{t("reps")}</Label>}
+                                      <Input
+                                        type="number"
+                                        min={1}
+                                        value={sd.reps}
+                                        onChange={(e) => setSelfLogExercises((prev) => prev.map((e2, i) => {
+                                          if (i !== idx) return e2;
+                                          const details = [...(e2.setDetails ?? makeSetDetails(e2.sets, e2.reps, e2.weight))];
+                                          details[sIdx] = { ...details[sIdx], reps: Number(e.target.value) };
+                                          return { ...e2, setDetails: details };
+                                        }))}
+                                        className="h-7 text-xs"
+                                      />
+                                    </div>
+                                    <div>
+                                      {sIdx === 0 && <Label className="text-xs mb-0.5 block">{t("weight")} ({t("optional")})</Label>}
+                                      <Input
+                                        type="number"
+                                        step="0.1"
+                                        value={sd.weight ?? ""}
+                                        onChange={(e) => setSelfLogExercises((prev) => prev.map((e2, i) => {
+                                          if (i !== idx) return e2;
+                                          const details = [...(e2.setDetails ?? makeSetDetails(e2.sets, e2.reps, e2.weight))];
+                                          details[sIdx] = { ...details[sIdx], weight: e.target.value ? Number(e.target.value) : undefined };
+                                          return { ...e2, setDetails: details };
+                                        }))}
+                                        className="h-7 text-xs"
+                                        placeholder="kg"
+                                      />
+                                    </div>
+                                  </div>
+                                ))}
                               </div>
+                              <RpeSelector
+                                value={ex.rpe}
+                                onChange={(rpe) => setSelfLogExercises((prev) => prev.map((e2, i) => i === idx ? { ...e2, rpe } : e2))}
+                                lang={lang}
+                              />
                             </div>
                           ))}
                         </div>
@@ -866,6 +916,7 @@ export function ClientView({
                                                       sets: ex.defaultSets,
                                                       reps: ex.defaultReps,
                                                       weight: ex.defaultWeight,
+                                                      setDetails: makeSetDetails(ex.defaultSets, ex.defaultReps, ex.defaultWeight),
                                                     })));
                                                   }
                                                 }
@@ -881,48 +932,78 @@ export function ClientView({
                                         )}
                                         <div className="space-y-1.5 max-h-[240px] overflow-y-auto">
                                           {editingLogExercises.map((ex, idx) => (
-                                            <div key={idx} className="border rounded p-2 space-y-1">
-                                              <div className="flex items-center justify-between">
-                                                <span className="text-sm font-medium">{ex.name}</span>
+                                            <div key={idx} className="border rounded p-2 space-y-2">
+                                              <div className="flex items-center gap-2">
+                                                <span className="text-sm font-medium flex-1 truncate">{ex.name}</span>
+                                                <div className="flex items-center gap-1 shrink-0">
+                                                  <Label className="text-xs text-muted-foreground">{t("sets")}:</Label>
+                                                  <Input
+                                                    type="number"
+                                                    min={1}
+                                                    value={ex.sets}
+                                                    onChange={(e) => {
+                                                      const newCount = Math.max(1, Number(e.target.value));
+                                                      setEditingLogExercises((prev) => prev.map((e2, i) => {
+                                                        if (i !== idx) return e2;
+                                                        const details = e2.setDetails ?? makeSetDetails(e2.sets, e2.reps, e2.weight);
+                                                        return { ...e2, sets: newCount, setDetails: resizeSetDetails(details, newCount, e2.reps, e2.weight) };
+                                                      }));
+                                                    }}
+                                                    className="h-7 w-14 text-xs text-center px-1"
+                                                  />
+                                                </div>
                                                 <Button
                                                   variant="ghost"
                                                   size="sm"
+                                                  className="h-7 w-7 p-0 shrink-0"
                                                   onClick={() => setEditingLogExercises((prev) => prev.filter((_, i) => i !== idx))}
                                                 >
                                                   <Trash2 className="size-3.5" />
                                                 </Button>
                                               </div>
-                                              <div className="grid grid-cols-3 gap-1.5">
-                                                <div>
-                                                  <Label className="text-xs">{t("sets")}</Label>
-                                                  <Input
-                                                    type="number"
-                                                    value={ex.sets}
-                                                    onChange={(e) => setEditingLogExercises((prev) => prev.map((e2, i) => i === idx ? { ...e2, sets: Number(e.target.value) } : e2))}
-                                                    className="h-7 text-xs"
-                                                  />
-                                                </div>
-                                                <div>
-                                                  <Label className="text-xs">{t("reps")}</Label>
-                                                  <Input
-                                                    type="number"
-                                                    value={ex.reps}
-                                                    onChange={(e) => setEditingLogExercises((prev) => prev.map((e2, i) => i === idx ? { ...e2, reps: Number(e.target.value) } : e2))}
-                                                    className="h-7 text-xs"
-                                                  />
-                                                </div>
-                                                <div>
-                                                  <Label className="text-xs">{t("weight")}</Label>
-                                                  <Input
-                                                    type="number"
-                                                    step="0.1"
-                                                    value={ex.weight || ""}
-                                                    onChange={(e) => setEditingLogExercises((prev) => prev.map((e2, i) => i === idx ? { ...e2, weight: e.target.value ? Number(e.target.value) : undefined } : e2))}
-                                                    className="h-7 text-xs"
-                                                    placeholder="kg"
-                                                  />
-                                                </div>
+                                              <div className="space-y-1">
+                                                {(ex.setDetails ?? makeSetDetails(ex.sets, ex.reps, ex.weight)).map((sd, sIdx) => (
+                                                  <div key={sIdx} className="grid grid-cols-[48px_1fr_1fr] gap-1.5 items-end">
+                                                    <span className="text-xs text-muted-foreground pb-1.5">{t("setLabel")} {sIdx + 1}</span>
+                                                    <div>
+                                                      {sIdx === 0 && <Label className="text-xs mb-0.5 block">{t("reps")}</Label>}
+                                                      <Input
+                                                        type="number"
+                                                        min={1}
+                                                        value={sd.reps}
+                                                        onChange={(e) => setEditingLogExercises((prev) => prev.map((e2, i) => {
+                                                          if (i !== idx) return e2;
+                                                          const details = [...(e2.setDetails ?? makeSetDetails(e2.sets, e2.reps, e2.weight))];
+                                                          details[sIdx] = { ...details[sIdx], reps: Number(e.target.value) };
+                                                          return { ...e2, setDetails: details };
+                                                        }))}
+                                                        className="h-7 text-xs"
+                                                      />
+                                                    </div>
+                                                    <div>
+                                                      {sIdx === 0 && <Label className="text-xs mb-0.5 block">{t("weight")} ({t("optional")})</Label>}
+                                                      <Input
+                                                        type="number"
+                                                        step="0.1"
+                                                        value={sd.weight ?? ""}
+                                                        onChange={(e) => setEditingLogExercises((prev) => prev.map((e2, i) => {
+                                                          if (i !== idx) return e2;
+                                                          const details = [...(e2.setDetails ?? makeSetDetails(e2.sets, e2.reps, e2.weight))];
+                                                          details[sIdx] = { ...details[sIdx], weight: e.target.value ? Number(e.target.value) : undefined };
+                                                          return { ...e2, setDetails: details };
+                                                        }))}
+                                                        className="h-7 text-xs"
+                                                        placeholder="kg"
+                                                      />
+                                                    </div>
+                                                  </div>
+                                                ))}
                                               </div>
+                                              <RpeSelector
+                                                value={ex.rpe}
+                                                onChange={(rpe) => setEditingLogExercises((prev) => prev.map((e2, i) => i === idx ? { ...e2, rpe } : e2))}
+                                                lang={lang}
+                                              />
                                             </div>
                                           ))}
                                         </div>
@@ -943,20 +1024,55 @@ export function ClientView({
                                       </div>
                                     ) : (
                                       <div className="space-y-1.5">
-                                        {log.exercises?.map((ex, exIdx) => (
-                                          <div
-                                            key={exIdx}
-                                            className="flex items-center py-2 px-3 rounded-md bg-muted/30"
-                                          >
-                                            <div className="flex-1">
-                                              <span className="font-medium text-sm">{ex.name}</span>
-                                              <span className="text-xs text-muted-foreground ml-2">
-                                                {ex.sets} {t("setsLabel")} × {ex.reps} {t("repsLabel")}
-                                                {ex.weight && ` @ ${ex.weight} ${t("weightUnit")}`}
-                                              </span>
+                                        {log.exercises?.map((ex, exIdx) => {
+                                          const exKey = `${log._id}-${exIdx}`;
+                                          const isExExpanded = expandedExercises.has(exKey);
+                                          const hasSets = ex.setDetails && ex.setDetails.length > 0;
+                                          return (
+                                            <div key={exIdx} className="rounded-md bg-muted/30 overflow-hidden">
+                                              <button
+                                                type="button"
+                                                className="w-full flex items-center justify-between py-2 px-3 text-left gap-2 hover:bg-muted/50 transition-colors"
+                                                onClick={() => {
+                                                  const next = new Set(expandedExercises);
+                                                  if (isExExpanded) next.delete(exKey); else next.add(exKey);
+                                                  setExpandedExercises(next);
+                                                }}
+                                              >
+                                                <div className="flex items-center gap-2 min-w-0">
+                                                  <span className="font-medium text-sm truncate">{ex.name}</span>
+                                                  <span className="text-xs text-muted-foreground shrink-0">
+                                                    {hasSets ? `${ex.setDetails!.length} ${t("setsLabel")}` : `${ex.sets} ${t("setsLabel")}`}
+                                                  </span>
+                                                  {ex.rpe && <RpeBadge value={ex.rpe} />}
+                                                </div>
+                                                {hasSets && (
+                                                  isExExpanded
+                                                    ? <ChevronUp className="size-3.5 text-muted-foreground shrink-0" />
+                                                    : <ChevronDown className="size-3.5 text-muted-foreground shrink-0" />
+                                                )}
+                                              </button>
+                                              {isExExpanded && hasSets && (
+                                                <div className="px-3 pb-2 space-y-0.5 border-t border-muted">
+                                                  {ex.setDetails!.map((sd, sIdx) => (
+                                                    <div key={sIdx} className="text-xs text-muted-foreground py-0.5">
+                                                      <span className="text-foreground/60 font-medium">{t("setLabel")} {sIdx + 1}:</span>{" "}
+                                                      {sd.reps} {t("repsLabel")}{sd.weight ? ` @ ${sd.weight} ${t("weightUnit")}` : ""}
+                                                    </div>
+                                                  ))}
+                                                </div>
+                                              )}
+                                              {!hasSets && (
+                                                <div className="px-3 pb-2 -mt-1">
+                                                  <span className="text-xs text-muted-foreground">
+                                                    {ex.sets} {t("setsLabel")} × {ex.reps} {t("repsLabel")}
+                                                    {ex.weight ? ` @ ${ex.weight} ${t("weightUnit")}` : ""}
+                                                  </span>
+                                                </div>
+                                              )}
                                             </div>
-                                          </div>
-                                        ))}
+                                          );
+                                        })}
                                       </div>
                                     )}
                                   </div>

@@ -16,6 +16,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { WeightChart, DimensionsChart } from "./Charts";
 import { TrainerMenuBar } from "./TrainerMenuBar";
 import { MembershipStatus } from "./MembershipStatus";
+import { RpeSelector, RpeBadge } from "./RpeSelector";
 import {
   Plus,
   Trash2,
@@ -77,6 +78,8 @@ type WorkoutExercise = {
   sets: number;
   reps: number;
   weight?: number;
+  setDetails?: { reps: number; weight?: number }[];
+  rpe?: string;
 };
 
 type WorkoutLog = {
@@ -84,6 +87,21 @@ type WorkoutLog = {
   clientId: string;
   date: string;
   exercises: WorkoutExercise[];
+};
+
+const makeSetDetails = (count: number, reps: number, weight?: number) =>
+  Array.from({ length: Math.max(1, count) }, () => ({ reps, weight }));
+
+const resizeSetDetails = (
+  details: { reps: number; weight?: number }[],
+  newCount: number,
+  defaultReps: number,
+  defaultWeight?: number
+): { reps: number; weight?: number }[] => {
+  const count = Math.max(1, newCount);
+  if (count <= details.length) return details.slice(0, count);
+  const last = details[details.length - 1] ?? { reps: defaultReps, weight: defaultWeight };
+  return [...details, ...Array.from({ length: count - details.length }, () => ({ ...last }))];
 };
 
 type WeightPoint = { _id?: string; date: string; weight: number };
@@ -119,6 +137,7 @@ export function TrainerView({
     exercise: WorkoutExercise;
   } | null>(null);
   const [expandedDays, setExpandedDays] = useState<Set<string>>(new Set());
+  const [expandedExercises, setExpandedExercises] = useState<Set<string>>(new Set());
   const [workoutHistoryMonth, setWorkoutHistoryMonth] = useState(new Date().getMonth());
   const [workoutHistoryYear, setWorkoutHistoryYear] = useState(new Date().getFullYear());
   const [exerciseNames, setExerciseNames] = useState<string[]>([]);
@@ -552,7 +571,10 @@ export function TrainerView({
 
   const addExerciseToWorkout = () => {
     if (!newExercise.name) return;
-    setWorkoutExercises([...workoutExercises, { ...newExercise }]);
+    setWorkoutExercises([...workoutExercises, {
+      ...newExercise,
+      setDetails: makeSetDetails(newExercise.sets, newExercise.reps, newExercise.weight),
+    }]);
     setNewExercise({ name: "", sets: 3, reps: 10, weight: undefined });
   };
 
@@ -581,7 +603,14 @@ export function TrainerView({
   };
 
   const startEditingWorkout = (log: WorkoutLog) => {
-    setEditingWorkout({ logId: log._id!, date: log.date, exercises: [...log.exercises] });
+    setEditingWorkout({
+      logId: log._id!,
+      date: log.date,
+      exercises: log.exercises.map((ex) => ({
+        ...ex,
+        setDetails: ex.setDetails ?? makeSetDetails(ex.sets, ex.reps, ex.weight),
+      })),
+    });
   };
 
   const cancelEditingWorkout = () => {
@@ -590,7 +619,10 @@ export function TrainerView({
 
   const addExerciseToEditingWorkout = () => {
     if (!editingWorkout || !newExercise.name) return;
-    setEditingWorkout({ ...editingWorkout, exercises: [...editingWorkout.exercises, { ...newExercise }] });
+    setEditingWorkout({ ...editingWorkout, exercises: [...editingWorkout.exercises, {
+      ...newExercise,
+      setDetails: makeSetDetails(newExercise.sets, newExercise.reps, newExercise.weight),
+    }] });
     setNewExercise({ name: "", sets: 3, reps: 10, weight: undefined });
   };
 
@@ -917,6 +949,7 @@ export function TrainerView({
                                   if (set) {
                                     setWorkoutExercises(set.exercises.map((ex) => ({
                                       name: ex.name, sets: ex.defaultSets, reps: ex.defaultReps, weight: ex.defaultWeight,
+                                      setDetails: makeSetDetails(ex.defaultSets, ex.defaultReps, ex.defaultWeight),
                                     })));
                                   }
                                 }
@@ -929,46 +962,93 @@ export function TrainerView({
                           </div>
                         )}
 
-                        {/* Editable exercise table */}
+                        {/* Editable exercise list */}
                         {workoutExercises.length > 0 && (
-                          <div className="overflow-x-auto">
-                          <div className="space-y-1 min-w-[340px]">
-                            <div className="grid grid-cols-[1fr_60px_60px_72px_32px] gap-1.5 px-2 text-xs text-muted-foreground font-medium">
-                              <span>{t("exerciseName")}</span>
-                              <span className="text-center">{t("sets")}</span>
-                              <span className="text-center">{t("reps")}</span>
-                              <span className="text-center">{t("weightUnit")}</span>
-                              <span />
-                            </div>
+                          <div className="space-y-2">
                             {workoutExercises.map((ex, idx) => (
-                              <div key={idx} className="grid grid-cols-[1fr_60px_60px_72px_32px] gap-1.5 items-center">
-                                <span className="text-sm px-2 truncate">{ex.name}</span>
-                                <Input type="number" value={ex.sets} min={1} onChange={(e) => updateWorkoutExercise(idx, "sets", Number(e.target.value))} className="h-8 text-center px-1 text-sm" />
-                                <Input type="number" value={ex.reps} min={1} onChange={(e) => updateWorkoutExercise(idx, "reps", Number(e.target.value))} className="h-8 text-center px-1 text-sm" />
-                                <Input type="number" step="0.5" value={ex.weight ?? ""} onChange={(e) => updateWorkoutExercise(idx, "weight", e.target.value ? Number(e.target.value) : undefined)} placeholder="—" className="h-8 text-center px-1 text-sm" />
-                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => removeExerciseFromWorkout(idx)}><Trash2 className="size-3.5" /></Button>
+                              <div key={idx} className="border rounded p-2 space-y-1.5">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm font-medium flex-1 truncate">{ex.name}</span>
+                                  <div className="flex items-center gap-1 shrink-0">
+                                    <Label className="text-xs text-muted-foreground">{t("sets")}:</Label>
+                                    <Input
+                                      type="number"
+                                      min={1}
+                                      value={ex.sets}
+                                      onChange={(e) => {
+                                        const newCount = Math.max(1, Number(e.target.value));
+                                        setWorkoutExercises((prev) => prev.map((e2, i) => {
+                                          if (i !== idx) return e2;
+                                          const details = e2.setDetails ?? makeSetDetails(e2.sets, e2.reps, e2.weight);
+                                          return { ...e2, sets: newCount, setDetails: resizeSetDetails(details, newCount, e2.reps, e2.weight) };
+                                        }));
+                                      }}
+                                      className="h-7 w-14 text-xs text-center px-1"
+                                    />
+                                  </div>
+                                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => removeExerciseFromWorkout(idx)}><Trash2 className="size-3.5" /></Button>
+                                </div>
+                                <div className="space-y-1">
+                                  {(ex.setDetails ?? makeSetDetails(ex.sets, ex.reps, ex.weight)).map((sd, sIdx) => (
+                                    <div key={sIdx} className="grid grid-cols-[48px_1fr_1fr] gap-1.5 items-end">
+                                      <span className="text-xs text-muted-foreground pb-1.5">{t("setLabel")} {sIdx + 1}</span>
+                                      <div>
+                                        {sIdx === 0 && <Label className="text-xs mb-0.5 block">{t("reps")}</Label>}
+                                        <Input
+                                          type="number"
+                                          min={1}
+                                          value={sd.reps}
+                                          onChange={(e) => setWorkoutExercises((prev) => prev.map((e2, i) => {
+                                            if (i !== idx) return e2;
+                                            const details = [...(e2.setDetails ?? makeSetDetails(e2.sets, e2.reps, e2.weight))];
+                                            details[sIdx] = { ...details[sIdx], reps: Number(e.target.value) };
+                                            return { ...e2, setDetails: details };
+                                          }))}
+                                          className="h-7 text-xs"
+                                        />
+                                      </div>
+                                      <div>
+                                        {sIdx === 0 && <Label className="text-xs mb-0.5 block">{t("weightUnit")}</Label>}
+                                        <Input
+                                          type="number"
+                                          step="0.5"
+                                          value={sd.weight ?? ""}
+                                          onChange={(e) => setWorkoutExercises((prev) => prev.map((e2, i) => {
+                                            if (i !== idx) return e2;
+                                            const details = [...(e2.setDetails ?? makeSetDetails(e2.sets, e2.reps, e2.weight))];
+                                            details[sIdx] = { ...details[sIdx], weight: e.target.value ? Number(e.target.value) : undefined };
+                                            return { ...e2, setDetails: details };
+                                          }))}
+                                          className="h-7 text-xs"
+                                          placeholder="—"
+                                        />
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                                <RpeSelector
+                                  value={ex.rpe}
+                                  onChange={(rpe) => setWorkoutExercises((prev) => prev.map((e2, i) => i === idx ? { ...e2, rpe } : e2))}
+                                  lang={lang}
+                                />
                               </div>
                             ))}
-                          </div>
                           </div>
                         )}
 
                         {/* Add exercise */}
                         <div className="border-t pt-3 space-y-2">
                           <Label className="text-sm font-semibold">{t("addExercise")}</Label>
-                          <select value={newExercise.name} onChange={(e) => setNewExercise((ex) => ({ ...ex, name: e.target.value }))} className="w-full px-3 py-2 border rounded-md bg-background text-foreground text-sm">
-                            <option value="">{t("selectExercise")}</option>
-                            {exerciseNames.map((name) => (<option key={name} value={name}>{name}</option>))}
-                          </select>
-                          {exerciseNames.length === 0 && <p className="text-xs text-muted-foreground">{t("noExerciseNamesHint")}</p>}
-                          <div className="grid grid-cols-3 gap-2">
-                            <div><Label className="text-xs">{t("sets")}</Label><Input type="number" value={newExercise.sets} onChange={(e) => setNewExercise((ex) => ({ ...ex, sets: Number(e.target.value) }))} className="mt-1 h-8" /></div>
-                            <div><Label className="text-xs">{t("reps")}</Label><Input type="number" value={newExercise.reps} onChange={(e) => setNewExercise((ex) => ({ ...ex, reps: Number(e.target.value) }))} className="mt-1 h-8" /></div>
-                            <div><Label className="text-xs">{t("weight")} <span className="text-muted-foreground">({t("optional")})</span></Label><Input type="number" step="0.5" value={newExercise.weight ?? ""} onChange={(e) => setNewExercise((ex) => ({ ...ex, weight: e.target.value ? Number(e.target.value) : undefined }))} className="mt-1 h-8" /></div>
+                          <div className="flex gap-2">
+                            <select value={newExercise.name} onChange={(e) => setNewExercise((ex) => ({ ...ex, name: e.target.value }))} className="flex-1 px-3 py-2 border rounded-md bg-background text-foreground text-sm">
+                              <option value="">{t("selectExercise")}</option>
+                              {exerciseNames.map((name) => (<option key={name} value={name}>{name}</option>))}
+                            </select>
+                            <Button onClick={addExerciseToWorkout} variant="outline" disabled={!newExercise.name} className="shrink-0">
+                              <Plus className="size-4" />{t("add")}
+                            </Button>
                           </div>
-                          <Button onClick={addExerciseToWorkout} variant="outline" className="w-full" disabled={!newExercise.name}>
-                            <Plus className="size-4" />{t("addExercise")}
-                          </Button>
+                          {exerciseNames.length === 0 && <p className="text-xs text-muted-foreground">{t("noExerciseNamesHint")}</p>}
                         </div>
 
                         <div className="flex gap-2">
@@ -1042,41 +1122,100 @@ export function TrainerView({
                                                   <Input type="date" value={editingWorkout.date} onChange={(e) => setEditingWorkout({ logId: editingWorkout.logId, date: e.target.value, exercises: editingWorkout.exercises })} className="w-auto" />
                                                 </div>
                                                 {editingWorkout.exercises.length > 0 && (
-                                                  <div className="overflow-x-auto">
-                                                  <div className="space-y-1 min-w-[340px]">
-                                                    <div className="grid grid-cols-[1fr_60px_60px_72px_32px] gap-1.5 px-2 text-xs text-muted-foreground font-medium">
-                                                      <span>{t("exerciseName")}</span>
-                                                      <span className="text-center">{t("sets")}</span>
-                                                      <span className="text-center">{t("reps")}</span>
-                                                      <span className="text-center">{t("weightUnit")}</span>
-                                                      <span />
-                                                    </div>
+                                                  <div className="space-y-2">
                                                     {editingWorkout.exercises.map((ex, idx) => (
-                                                      <div key={idx} className="grid grid-cols-[1fr_60px_60px_72px_32px] gap-1.5 items-center">
-                                                        <span className="text-sm px-2 truncate">{ex.name}</span>
-                                                        <Input type="number" value={ex.sets} min={1} onChange={(e) => updateEditingWorkoutExercise(idx, "sets", Number(e.target.value))} className="h-8 text-center px-1 text-sm" />
-                                                        <Input type="number" value={ex.reps} min={1} onChange={(e) => updateEditingWorkoutExercise(idx, "reps", Number(e.target.value))} className="h-8 text-center px-1 text-sm" />
-                                                        <Input type="number" step="0.5" value={ex.weight ?? ""} onChange={(e) => updateEditingWorkoutExercise(idx, "weight", e.target.value ? Number(e.target.value) : undefined)} placeholder="—" className="h-8 text-center px-1 text-sm" />
-                                                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => removeExerciseFromEditingWorkout(idx)}><Trash2 className="size-3.5" /></Button>
+                                                      <div key={idx} className="border rounded p-2 space-y-1.5">
+                                                        <div className="flex items-center gap-2">
+                                                          <span className="text-sm font-medium flex-1 truncate">{ex.name}</span>
+                                                          <div className="flex items-center gap-1 shrink-0">
+                                                            <Label className="text-xs text-muted-foreground">{t("sets")}:</Label>
+                                                            <Input
+                                                              type="number"
+                                                              min={1}
+                                                              value={ex.sets}
+                                                              onChange={(e) => {
+                                                                const newCount = Math.max(1, Number(e.target.value));
+                                                                setEditingWorkout((prev) => {
+                                                                  if (!prev) return prev;
+                                                                  return { ...prev, exercises: prev.exercises.map((e2, i) => {
+                                                                    if (i !== idx) return e2;
+                                                                    const details = e2.setDetails ?? makeSetDetails(e2.sets, e2.reps, e2.weight);
+                                                                    return { ...e2, sets: newCount, setDetails: resizeSetDetails(details, newCount, e2.reps, e2.weight) };
+                                                                  })};
+                                                                });
+                                                              }}
+                                                              className="h-7 w-14 text-xs text-center px-1"
+                                                            />
+                                                          </div>
+                                                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => removeExerciseFromEditingWorkout(idx)}><Trash2 className="size-3.5" /></Button>
+                                                        </div>
+                                                        <div className="space-y-1">
+                                                          {(ex.setDetails ?? makeSetDetails(ex.sets, ex.reps, ex.weight)).map((sd, sIdx) => (
+                                                            <div key={sIdx} className="grid grid-cols-[48px_1fr_1fr] gap-1.5 items-end">
+                                                              <span className="text-xs text-muted-foreground pb-1.5">{t("setLabel")} {sIdx + 1}</span>
+                                                              <div>
+                                                                {sIdx === 0 && <Label className="text-xs mb-0.5 block">{t("reps")}</Label>}
+                                                                <Input
+                                                                  type="number"
+                                                                  min={1}
+                                                                  value={sd.reps}
+                                                                  onChange={(e) => setEditingWorkout((prev) => {
+                                                                    if (!prev) return prev;
+                                                                    return { ...prev, exercises: prev.exercises.map((e2, i) => {
+                                                                      if (i !== idx) return e2;
+                                                                      const details = [...(e2.setDetails ?? makeSetDetails(e2.sets, e2.reps, e2.weight))];
+                                                                      details[sIdx] = { ...details[sIdx], reps: Number(e.target.value) };
+                                                                      return { ...e2, setDetails: details };
+                                                                    })};
+                                                                  })}
+                                                                  className="h-7 text-xs"
+                                                                />
+                                                              </div>
+                                                              <div>
+                                                                {sIdx === 0 && <Label className="text-xs mb-0.5 block">{t("weightUnit")}</Label>}
+                                                                <Input
+                                                                  type="number"
+                                                                  step="0.5"
+                                                                  value={sd.weight ?? ""}
+                                                                  onChange={(e) => setEditingWorkout((prev) => {
+                                                                    if (!prev) return prev;
+                                                                    return { ...prev, exercises: prev.exercises.map((e2, i) => {
+                                                                      if (i !== idx) return e2;
+                                                                      const details = [...(e2.setDetails ?? makeSetDetails(e2.sets, e2.reps, e2.weight))];
+                                                                      details[sIdx] = { ...details[sIdx], weight: e.target.value ? Number(e.target.value) : undefined };
+                                                                      return { ...e2, setDetails: details };
+                                                                    })};
+                                                                  })}
+                                                                  className="h-7 text-xs"
+                                                                  placeholder="—"
+                                                                />
+                                                              </div>
+                                                            </div>
+                                                          ))}
+                                                        </div>
+                                                        <RpeSelector
+                                                          value={ex.rpe}
+                                                          onChange={(rpe) => setEditingWorkout((prev) => {
+                                                            if (!prev) return prev;
+                                                            return { ...prev, exercises: prev.exercises.map((e2, i) => i === idx ? { ...e2, rpe } : e2) };
+                                                          })}
+                                                          lang={lang}
+                                                        />
                                                       </div>
                                                     ))}
-                                                  </div>
                                                   </div>
                                                 )}
                                                 <div className="border-t pt-3 space-y-2">
                                                   <Label className="text-sm">{t("addExercise")}</Label>
-                                                  <select value={newExercise.name} onChange={(e) => setNewExercise((ex) => ({ ...ex, name: e.target.value }))} className="w-full px-3 py-2 border rounded-md bg-background text-foreground text-sm">
-                                                    <option value="">{t("selectExercise")}</option>
-                                                    {exerciseNames.map((name) => (<option key={name} value={name}>{name}</option>))}
-                                                  </select>
-                                                  <div className="grid grid-cols-3 gap-2">
-                                                    <Input type="number" value={newExercise.sets} onChange={(e) => setNewExercise((ex) => ({ ...ex, sets: Number(e.target.value) }))} placeholder={t("sets")} className="h-8" />
-                                                    <Input type="number" value={newExercise.reps} onChange={(e) => setNewExercise((ex) => ({ ...ex, reps: Number(e.target.value) }))} placeholder={t("reps")} className="h-8" />
-                                                    <Input type="number" step="0.5" value={newExercise.weight ?? ""} onChange={(e) => setNewExercise((ex) => ({ ...ex, weight: e.target.value ? Number(e.target.value) : undefined }))} placeholder={t("weightUnit")} className="h-8" />
+                                                  <div className="flex gap-2">
+                                                    <select value={newExercise.name} onChange={(e) => setNewExercise((ex) => ({ ...ex, name: e.target.value }))} className="flex-1 px-3 py-2 border rounded-md bg-background text-foreground text-sm">
+                                                      <option value="">{t("selectExercise")}</option>
+                                                      {exerciseNames.map((name) => (<option key={name} value={name}>{name}</option>))}
+                                                    </select>
+                                                    <Button onClick={addExerciseToEditingWorkout} variant="outline" disabled={!newExercise.name} className="shrink-0">
+                                                      <Plus className="size-4" />{t("add")}
+                                                    </Button>
                                                   </div>
-                                                  <Button onClick={addExerciseToEditingWorkout} variant="outline" className="w-full" disabled={!newExercise.name}>
-                                                    <Plus className="size-4" />{t("addExercise")}
-                                                  </Button>
                                                 </div>
                                                 <div className="flex gap-2">
                                                   <Button onClick={saveEditedWorkout} className="flex-1" disabled={editingWorkout.exercises.length === 0}><Save className="size-4" />{t("save")}</Button>
@@ -1093,36 +1232,124 @@ export function TrainerView({
                                                   </div>
                                                 </div>
                                                 <div className="space-y-1">
-                                                  {log.exercises?.map((ex, exIdx) => (
-                                                    <div key={exIdx} className="flex items-center justify-between py-1.5 px-2 rounded border text-sm">
+                                                  {log.exercises?.map((ex, exIdx) => {
+                                                    const exKey = `${log._id}-${exIdx}`;
+                                                    const isExExpanded = expandedExercises.has(exKey);
+                                                    const hasSets = ex.setDetails && ex.setDetails.length > 0;
+                                                    return (
+                                                    <div key={exIdx} className="rounded border text-sm overflow-hidden">
                                                       {editingExercise?.logId === log._id && editingExercise?.exerciseIndex === exIdx ? (
                                                         <div className="flex-1 space-y-2">
                                                           <select value={editingExercise.exercise.name} onChange={(e) => setEditingExercise({ ...editingExercise, exercise: { ...editingExercise.exercise, name: e.target.value } })} className="w-full px-3 py-2 border rounded-md bg-background text-foreground text-sm">
                                                             <option value="">{t("selectExercise")}</option>
                                                             {exerciseNames.map((name) => (<option key={name} value={name}>{name}</option>))}
                                                           </select>
-                                                          <div className="flex gap-2 items-center flex-wrap">
-                                                            <Input type="number" value={editingExercise.exercise.sets} onChange={(e) => setEditingExercise({ ...editingExercise, exercise: { ...editingExercise.exercise, sets: Number(e.target.value) } })} placeholder={t("sets")} className="w-20 h-8" />
-                                                            <Input type="number" value={editingExercise.exercise.reps} onChange={(e) => setEditingExercise({ ...editingExercise, exercise: { ...editingExercise.exercise, reps: Number(e.target.value) } })} placeholder={t("reps")} className="w-20 h-8" />
-                                                            <Input type="number" step="0.1" value={editingExercise.exercise.weight || ""} onChange={(e) => setEditingExercise({ ...editingExercise, exercise: { ...editingExercise.exercise, weight: e.target.value ? Number(e.target.value) : undefined } })} placeholder={t("exerciseWeight")} className="w-24 h-8" />
+                                                          <div className="flex items-center gap-2">
+                                                            <Label className="text-xs text-muted-foreground shrink-0">{t("sets")}:</Label>
+                                                            <Input
+                                                              type="number"
+                                                              min={1}
+                                                              value={editingExercise.exercise.sets}
+                                                              onChange={(e) => {
+                                                                const newCount = Math.max(1, Number(e.target.value));
+                                                                const cur = editingExercise.exercise;
+                                                                const details = cur.setDetails ?? makeSetDetails(cur.sets, cur.reps, cur.weight);
+                                                                setEditingExercise({ ...editingExercise, exercise: { ...cur, sets: newCount, setDetails: resizeSetDetails(details, newCount, cur.reps, cur.weight) } });
+                                                              }}
+                                                              className="w-16 h-8"
+                                                            />
+                                                          </div>
+                                                          <div className="space-y-1">
+                                                            {(editingExercise.exercise.setDetails ?? makeSetDetails(editingExercise.exercise.sets, editingExercise.exercise.reps, editingExercise.exercise.weight)).map((sd, sIdx) => (
+                                                              <div key={sIdx} className="grid grid-cols-[48px_1fr_1fr] gap-1.5 items-end">
+                                                                <span className="text-xs text-muted-foreground pb-1.5">{t("setLabel")} {sIdx + 1}</span>
+                                                                <div>
+                                                                  {sIdx === 0 && <Label className="text-xs mb-0.5 block">{t("reps")}</Label>}
+                                                                  <Input
+                                                                    type="number"
+                                                                    min={1}
+                                                                    value={sd.reps}
+                                                                    onChange={(e) => {
+                                                                      const details = [...(editingExercise.exercise.setDetails ?? makeSetDetails(editingExercise.exercise.sets, editingExercise.exercise.reps, editingExercise.exercise.weight))];
+                                                                      details[sIdx] = { ...details[sIdx], reps: Number(e.target.value) };
+                                                                      setEditingExercise({ ...editingExercise, exercise: { ...editingExercise.exercise, setDetails: details } });
+                                                                    }}
+                                                                    className="h-8 text-sm"
+                                                                  />
+                                                                </div>
+                                                                <div>
+                                                                  {sIdx === 0 && <Label className="text-xs mb-0.5 block">{t("exerciseWeight")}</Label>}
+                                                                  <Input
+                                                                    type="number"
+                                                                    step="0.1"
+                                                                    value={sd.weight ?? ""}
+                                                                    onChange={(e) => {
+                                                                      const details = [...(editingExercise.exercise.setDetails ?? makeSetDetails(editingExercise.exercise.sets, editingExercise.exercise.reps, editingExercise.exercise.weight))];
+                                                                      details[sIdx] = { ...details[sIdx], weight: e.target.value ? Number(e.target.value) : undefined };
+                                                                      setEditingExercise({ ...editingExercise, exercise: { ...editingExercise.exercise, setDetails: details } });
+                                                                    }}
+                                                                    className="h-8 text-sm"
+                                                                    placeholder="—"
+                                                                  />
+                                                                </div>
+                                                              </div>
+                                                            ))}
+                                                          </div>
+                                                          <div className="flex gap-2">
                                                             <Button size="sm" onClick={() => updateExercise(log._id!, exIdx, editingExercise.exercise)}><Check className="size-4" />{t("save")}</Button>
                                                             <Button variant="outline" size="sm" onClick={() => setEditingExercise(null)}><X className="size-4" />{t("cancel")}</Button>
                                                           </div>
                                                         </div>
                                                       ) : (
                                                         <>
-                                                          <div className="flex-1">
-                                                            <span className="font-medium">{ex.name}</span>
-                                                            <span className="text-muted-foreground ml-2">{ex.sets} {t("setsLabel")} × {ex.reps} {t("repsLabel")}{ex.weight ? ` @ ${ex.weight} ${t("weightUnit")}` : ""}</span>
+                                                          <div className="flex items-center justify-between gap-2 py-1.5 px-2">
+                                                            <button
+                                                              type="button"
+                                                              className="flex-1 flex items-center gap-2 min-w-0 text-left hover:opacity-70 transition-opacity"
+                                                              onClick={() => {
+                                                                const next = new Set(expandedExercises);
+                                                                if (isExExpanded) next.delete(exKey); else next.add(exKey);
+                                                                setExpandedExercises(next);
+                                                              }}
+                                                            >
+                                                              <span className="font-medium truncate">{ex.name}</span>
+                                                              <span className="text-xs text-muted-foreground shrink-0">
+                                                                {hasSets ? `${ex.setDetails!.length} ${t("setsLabel")}` : `${ex.sets} ${t("setsLabel")}`}
+                                                              </span>
+                                                              {ex.rpe && <RpeBadge value={ex.rpe} />}
+                                                              {hasSets && (
+                                                                isExExpanded
+                                                                  ? <ChevronUp className="size-3.5 text-muted-foreground shrink-0" />
+                                                                  : <ChevronDown className="size-3.5 text-muted-foreground shrink-0" />
+                                                              )}
+                                                            </button>
+                                                            <div className="flex gap-1 shrink-0">
+                                                              <Button variant="ghost" size="sm" onClick={() => setEditingExercise({ logId: log._id!, exerciseIndex: exIdx, exercise: { ...ex, setDetails: ex.setDetails ?? makeSetDetails(ex.sets, ex.reps, ex.weight) } })} title={t("edit")}><Pencil className="size-4" /></Button>
+                                                              <Button variant="ghost" size="sm" onClick={() => deleteExercise(log._id!, exIdx)} title={t("delete")}><Trash2 className="size-4" /></Button>
+                                                            </div>
                                                           </div>
-                                                          <div className="flex gap-1">
-                                                            <Button variant="ghost" size="sm" onClick={() => setEditingExercise({ logId: log._id!, exerciseIndex: exIdx, exercise: ex })} title={t("edit")}><Pencil className="size-4" /></Button>
-                                                            <Button variant="ghost" size="sm" onClick={() => deleteExercise(log._id!, exIdx)} title={t("delete")}><Trash2 className="size-4" /></Button>
-                                                          </div>
+                                                          {isExExpanded && hasSets && (
+                                                            <div className="px-3 pb-2 space-y-0.5 border-t border-muted">
+                                                              {ex.setDetails!.map((sd, sIdx) => (
+                                                                <div key={sIdx} className="text-xs text-muted-foreground py-0.5">
+                                                                  <span className="text-foreground/60 font-medium">{t("setLabel")} {sIdx + 1}:</span>{" "}
+                                                                  {sd.reps} {t("repsLabel")}{sd.weight ? ` @ ${sd.weight} ${t("weightUnit")}` : ""}
+                                                                </div>
+                                                              ))}
+                                                            </div>
+                                                          )}
+                                                          {!hasSets && (
+                                                            <div className="px-3 pb-2 -mt-1">
+                                                              <span className="text-xs text-muted-foreground">
+                                                                {ex.sets} {t("setsLabel")} × {ex.reps} {t("repsLabel")}{ex.weight ? ` @ ${ex.weight} ${t("weightUnit")}` : ""}
+                                                              </span>
+                                                            </div>
+                                                          )}
                                                         </>
                                                       )}
                                                     </div>
-                                                  ))}
+                                                    );
+                                                  })}
                                                 </div>
                                               </>
                                             )}
