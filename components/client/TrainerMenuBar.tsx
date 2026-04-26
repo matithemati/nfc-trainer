@@ -1,12 +1,9 @@
 "use client";
 
-import Image from "next/image";
 import { LanguageSwitcher } from "./LanguageSwitcher";
 import { ThemeToggle } from "./ThemeToggle";
-import { useTheme } from "@/components/providers/ThemeProvider";
 import { DropdownMenu, DropdownMenuItem } from "@/components/ui/dropdown-menu";
-import { Avatar } from "@/components/ui/avatar";
-import { LogOut, ChevronDown } from "lucide-react";
+import { LogOut, ChevronDown, Users, Dumbbell, User } from "lucide-react";
 import { getMessages } from "@/lib/i18n";
 
 type Trainer = {
@@ -17,73 +14,86 @@ type Trainer = {
   expirationDate?: string | null;
 };
 
+type Tab = "clients" | "library" | "account";
+
 type Props = {
   trainer: Trainer;
   clientsCount: number;
   lang: string;
   onLogout: () => void;
+  activeTab: Tab;
+  onTabChange: (tab: Tab) => void;
 };
 
-export function TrainerMenuBar({ trainer, clientsCount, lang, onLogout }: Props) {
-  const { t } = getMessages(lang);
-  const { theme } = useTheme();
-  const firstName = trainer.name.split(" ")[0];
+function getInitials(name: string) {
+  return name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
+}
 
-  // Check if membership is active
-  const expirationDate = trainer.expirationDate 
-    ? new Date(trainer.expirationDate)
-    : null;
-  
-  const isExpired = expirationDate 
-    ? expirationDate < new Date()
-    : false;
-  
-  // Membership is active if expirationDate is null (no expiration) or in the future
-  const isMembershipActive = !expirationDate || !isExpired;
+export function TrainerMenuBar({ trainer, clientsCount, lang, onLogout, activeTab, onTabChange }: Props) {
+  const { t } = getMessages(lang);
+
+  const navTabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
+    { id: "clients", label: t("clients"), icon: <Users className="size-3.5" /> },
+    { id: "library", label: t("exercisesTab"), icon: <Dumbbell className="size-3.5" /> },
+    { id: "account", label: t("account"), icon: <User className="size-3.5" /> },
+  ];
 
   return (
-    <div className="flex items-center justify-between pb-3 mb-4">
-      <div className="flex items-center">
-        <Image
-          src={theme === "dark" ? "/logo-dark.png" : "/logo-light.png"}
-          alt={t("appTitle")}
-          width={80}
-          height={75}
-          className="h-auto w-12 sm:w-20"
-          priority
-        />
+    <div className="flex items-center h-14 px-4 sm:px-5 bg-card border-b border-border shrink-0 gap-3">
+      {/* Logo */}
+      <div className="flex items-center gap-2 shrink-0 mr-2">
+        <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center shrink-0">
+          <span className="text-[10px] font-extrabold text-primary-foreground tracking-tight">NFC</span>
+        </div>
+        <span className="text-sm font-bold text-foreground tracking-tight hidden sm:inline">Trainer</span>
       </div>
-      
-      <div className="flex items-center gap-1.5 sm:gap-3">
-        <ThemeToggle lang={lang} />
+
+      {/* Nav tabs */}
+      <div className="flex items-center gap-0.5 flex-1 overflow-x-auto no-scrollbar">
+        {navTabs.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => onTabChange(tab.id)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all cursor-pointer ${
+              activeTab === tab.id
+                ? "bg-primary/10 text-primary font-semibold"
+                : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
+            }`}
+          >
+            {tab.icon}
+            <span className="hidden sm:inline">{tab.label}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* Right controls */}
+      <div className="flex items-center gap-2 shrink-0">
         <LanguageSwitcher lang={lang as "pl" | "en"} />
-        
+        <ThemeToggle lang={lang} />
+        <div className="w-px h-5 bg-border mx-0.5" />
         <DropdownMenu
           trigger={
-            <button className="flex items-center gap-1 sm:gap-2 px-1 sm:px-2 py-1 sm:py-1.5 rounded-md hover:bg-accent transition-colors">
-              <div className="sm:hidden">
-                <Avatar name={trainer.name} size="sm" />
+            <button className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg hover:bg-muted/60 transition-colors cursor-pointer">
+              <div className="w-6 h-6 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
+                <span className="text-[9px] font-bold text-primary">{getInitials(trainer.name)}</span>
               </div>
-              <div className="hidden sm:block">
-                <Avatar name={trainer.name} size="default" />
-              </div>
-              <span className="hidden sm:inline font-medium text-sm text-foreground">{firstName}</span>
-              <ChevronDown className="size-3 sm:size-3.5 text-muted-foreground" />
+              <span className="hidden sm:inline text-sm font-semibold text-foreground">
+                {trainer.name.split(" ")[0]}
+              </span>
+              <ChevronDown className="size-3 text-muted-foreground" />
             </button>
           }
           align="right"
         >
           <div className="px-3 py-2.5 border-b mb-1">
-            <div className="text-sm font-medium">{trainer.name}</div>
+            <div className="text-sm font-semibold text-foreground">{trainer.name}</div>
             <div className="text-xs text-muted-foreground mt-0.5">{trainer.email}</div>
-            {isMembershipActive && (
-              <div className="text-xs text-muted-foreground mt-1">
-                {t("clients")}: {clientsCount} / {trainer.maxClients}
-              </div>
-            )}
+            <div className="text-xs text-muted-foreground mt-1">
+              {t("clients")}: {clientsCount} / {trainer.maxClients}
+            </div>
           </div>
           <DropdownMenuItem onClick={onLogout}>
-            <LogOut className="size-4 mr-2" />
+            <LogOut className="size-3.5 mr-2" />
             {t("logout")}
           </DropdownMenuItem>
         </DropdownMenu>

@@ -269,374 +269,244 @@ export function TrainersManagement({ lang }: { lang: string }) {
   return (
     <div className="min-h-screen bg-background">
       <AdminNavbar lang={lang} />
-      <div className="container mx-auto px-4 py-8 space-y-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6 space-y-4 sm:space-y-6">
+
         {/* Header */}
-        <div>
-          <h1 className="text-3xl font-bold text-foreground">{t("trainers")}</h1>
-        </div>
-
-      {/* Controls */}
-      <div className="flex gap-4 items-center justify-between">
-        <div className="flex gap-4 items-center">
-          <div className="relative max-w-sm">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder={t("search")}
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setPage(1);
-              }}
-              className="pl-9"
-            />
-          </div>
-          <div className="flex items-center gap-2">
-            <Checkbox
-              id="showDeleted"
-              checked={showDeleted}
-              onCheckedChange={(checked) => {
-                setShowDeleted(checked === true);
-                setPage(1);
-              }}
-            />
-            <Label htmlFor="showDeleted" className="cursor-pointer mb-0">
-              {t("showDeleted")}
-            </Label>
-          </div>
-        </div>
-        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="bg-black text-white hover:bg-black/90 dark:bg-primary dark:text-primary-foreground dark:hover:bg-primary/90">
-              <Plus className="h-4 w-4" />
-              {t("createTrainer")}
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <form action={handleCreate}>
-              <DialogHeader>
-                <DialogTitle>{t("createTrainer")}</DialogTitle>
-                <DialogDescription>{t("createTrainer")}</DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4 py-4">
-                <div>
-                  <Label htmlFor="name">{t("trainerName")}</Label>
-                  <Input id="name" name="name" required />
-                </div>
-                <div>
-                  <Label htmlFor="email">{t("trainerEmail")}</Label>
-                  <Input id="email" name="email" type="email" required />
-                </div>
-                <div>
-                  <Label>{t("trainerType")}</Label>
-                  <Select value={createType} onValueChange={(v) => setCreateType(v as "personal" | "studio")}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="personal">{t("trainerTypePersonal")}</SelectItem>
-                      <SelectItem value="studio">{t("trainerTypeStudio")}</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label htmlFor="expirationDate">{t("membershipExpiration")}</Label>
-                  <Input id="expirationDate" name="expirationDate" type="date" />
-                </div>
-                <div>
-                  <Label htmlFor="pricePerMonth">{t("pricePerMonth")}</Label>
-                  <Input id="pricePerMonth" name="pricePerMonth" type="number" step="0.01" />
-                </div>
-              </div>
-              <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
-                  <X className="h-4 w-4" />
-                  {t("cancel")}
-                </Button>
-                <Button type="submit" className="bg-black text-white hover:bg-black/90 dark:bg-primary dark:text-primary-foreground dark:hover:bg-primary/90">
-                  <Save className="h-4 w-4" />
-                  {t("save")}
-                </Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
-      </div>
-
-      {/* Table */}
-      <Card>
-        <CardContent className="p-0">
-          {loading ? (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t("trainerName")}</TableHead>
-                  <TableHead>{t("trainerEmail")}</TableHead>
-                  <TableHead>{t("trainerType")}</TableHead>
-                  <TableHead>{t("membershipExpiration")}</TableHead>
-                  <TableHead>{t("pricePerMonth")}</TableHead>
-                  <TableHead>{t("actions")}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {Array.from({ length: pageSize }).map((_, i) => (
-                  <TableRow key={i}>
-                    <TableCell><div className="h-4 bg-muted animate-pulse rounded w-3/4" /></TableCell>
-                    <TableCell><div className="h-4 bg-muted animate-pulse rounded w-full" /></TableCell>
-                    <TableCell><div className="h-4 bg-muted animate-pulse rounded w-1/2" /></TableCell>
-                    <TableCell><div className="h-4 bg-muted animate-pulse rounded w-2/3" /></TableCell>
-                    <TableCell><div className="h-4 bg-muted animate-pulse rounded w-1/3" /></TableCell>
-                    <TableCell><div className="h-4 bg-muted animate-pulse rounded w-1/4" /></TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          ) : trainers.length === 0 ? (
-            <div className="p-4">{t("noTrainers")}</div>
-          ) : (
-            <>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>{t("trainerName")}</TableHead>
-                    <TableHead>{t("trainerEmail")}</TableHead>
-                    <TableHead>{t("trainerType")}</TableHead>
-                    <TableHead>{t("membershipExpiration")}</TableHead>
-                    <TableHead>{t("pricePerMonth")}</TableHead>
-                    <TableHead>{t("actions")}</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {trainers.map((trainer) => (
-                    <TableRow key={trainer._id}>
-                      <TableCell>{trainer.name}</TableCell>
-                      <TableCell>{trainer.email}</TableCell>
-                      <TableCell>{trainer.type === "personal" ? t("trainerTypePersonal") : t("trainerTypeStudio")}</TableCell>
-                      <TableCell>
-                        {trainer.expirationDate
-                          ? new Date(trainer.expirationDate).toLocaleDateString()
-                          : t("noExpirationDate")}
-                      </TableCell>
-                      <TableCell>
-                        {trainer.pricePerMonth ? `$${trainer.pricePerMonth}` : "-"}
-                      </TableCell>
-                      <TableCell>
-                        <TooltipProvider>
-                          <div className="flex gap-2">
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  size="icon-sm"
-                                  variant="ghost"
-                                  onClick={() => {
-                                    setEditingTrainer(trainer);
-                                    setEditType(trainer.type === "personal" ? "personal" : "studio");
-                                    setEditingClientCount(null);
-                                    setIsEditDialogOpen(true);
-                                    fetch(`/api/admin/trainers/${trainer._id}`)
-                                      .then((r) => r.json())
-                                      .then((d) => setEditingClientCount(d.clientsCount ?? 0))
-                                      .catch(() => setEditingClientCount(0));
-                                  }}
-                                >
-                                  <Pencil className="h-4 w-4" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p>{t("edit")}</p>
-                              </TooltipContent>
-                            </Tooltip>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  size="icon-sm"
-                                  variant="ghost"
-                                  onClick={() => {
-                                    setSelectedTrainer(trainer);
-                                    setIsProlongDialogOpen(true);
-                                  }}
-                                >
-                                  <Calendar className="h-4 w-4" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p>{t("prolongMembership")}</p>
-                              </TooltipContent>
-                            </Tooltip>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  size="icon-sm"
-                                  variant="ghost"
-                                  onClick={() => {
-                                    setSelectedTrainer(trainer);
-                                    setIsNoteDialogOpen(true);
-                                  }}
-                                >
-                                  <StickyNote className="h-4 w-4" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p>{t("addNote")}</p>
-                              </TooltipContent>
-                            </Tooltip>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  size="icon-sm"
-                                  variant="ghost"
-                                  onClick={() => handleDelete(trainer._id)}
-                                  disabled={!!trainer.deletedAt}
-                                  className="text-destructive hover:text-destructive"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p>{t("delete")}</p>
-                              </TooltipContent>
-                            </Tooltip>
-                          </div>
-                        </TooltipProvider>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-              {pagination && (
-                <div className="flex flex-col gap-4 p-4 border-t">
-                  {/* Top row: Page info and page size selector */}
-                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
-                    <div className="text-sm text-muted-foreground">
-                      {t("page")} {pagination.page} / {pagination.totalPages} ({pagination.total} {t("items")})
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Label className="text-sm whitespace-nowrap">{t("perPage") || "Per page"}:</Label>
-                      <Select
-                        value={pageSize.toString()}
-                        onValueChange={(value) => setPageSize(parseInt(value))}
-                      >
-                        <SelectTrigger className="w-[100px]">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="10">10</SelectItem>
-                          <SelectItem value="20">20</SelectItem>
-                          <SelectItem value="50">50</SelectItem>
-                          <SelectItem value="100">100</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                  
-                  {/* Bottom row: Navigation buttons */}
-                  <div className="flex flex-wrap items-center justify-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={pagination.page === 1}
-                      onClick={() => setPage(1)}
-                      title="First page"
-                    >
-                      <ChevronsLeft className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={pagination.page === 1}
-                      onClick={() => setPage(page - 1)}
-                    >
-                      <ChevronLeft className="h-4 w-4" />
-                      {t("previousPage")}
-                    </Button>
-                    
-                    {/* Page numbers */}
-                    <div className="flex items-center gap-1 flex-wrap justify-center">
-                      {(() => {
-                        const pages: (number | string)[] = [];
-                        const totalPages = pagination.totalPages;
-                        const currentPage = pagination.page;
-                        
-                        if (totalPages <= 7) {
-                          // Show all pages if 7 or fewer
-                          for (let i = 1; i <= totalPages; i++) {
-                            pages.push(i);
-                          }
-                        } else {
-                          // Always show first page
-                          pages.push(1);
-                          
-                          if (currentPage > 3) {
-                            pages.push("...");
-                          }
-                          
-                          // Show pages around current page
-                          const start = Math.max(2, currentPage - 1);
-                          const end = Math.min(totalPages - 1, currentPage + 1);
-                          
-                          for (let i = start; i <= end; i++) {
-                            if (i !== 1 && i !== totalPages) {
-                              pages.push(i);
-                            }
-                          }
-                          
-                          if (currentPage < totalPages - 2) {
-                            pages.push("...");
-                          }
-                          
-                          // Always show last page
-                          pages.push(totalPages);
-                        }
-                        
-                        return pages.map((pageNum, idx) => {
-                          if (pageNum === "...") {
-                            return (
-                              <span key={`ellipsis-${idx}`} className="px-2 text-muted-foreground">
-                                ...
-                              </span>
-                            );
-                          }
-                          
-                          const isActive = pageNum === currentPage;
-                          return (
-                            <Button
-                              key={pageNum}
-                              variant={isActive ? undefined : "outline"}
-                              size="sm"
-                              onClick={() => setPage(pageNum as number)}
-                              className={isActive ? "bg-black text-white hover:bg-black/90 dark:bg-primary dark:text-primary-foreground dark:hover:bg-primary/90" : ""}
-                            >
-                              {pageNum}
-                            </Button>
-                          );
-                        });
-                      })()}
-                    </div>
-                    
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={pagination.page === pagination.totalPages}
-                      onClick={() => setPage(page + 1)}
-                    >
-                      {t("nextPage")}
-                      <ChevronRight className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={pagination.page === pagination.totalPages}
-                      onClick={() => setPage(pagination.totalPages)}
-                      title="Last page"
-                    >
-                      <ChevronsRight className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </>
+        <div className="flex items-center justify-between">
+          <h1 className="text-xl font-bold text-foreground">{t("trainers")}</h1>
+          {pagination && (
+            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-success/10 text-success border border-success/20">
+              {pagination.total} total
+            </span>
           )}
-        </CardContent>
-      </Card>
+        </div>
+
+        {/* Controls */}
+        <div className="flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
+          <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder={t("search")}
+                value={search}
+                onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+                className="pl-9"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <Checkbox id="showDeleted" checked={showDeleted} onCheckedChange={(c) => { setShowDeleted(c === true); setPage(1); }} />
+              <Label htmlFor="showDeleted" className="cursor-pointer mb-0 text-sm">{t("showDeleted")}</Label>
+            </div>
+          </div>
+          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+            <DialogTrigger asChild>
+              <Button><Plus className="h-4 w-4" />{t("createTrainer")}</Button>
+            </DialogTrigger>
+            <DialogContent>
+              <form action={handleCreate}>
+                <DialogHeader>
+                  <DialogTitle>{t("createTrainer")}</DialogTitle>
+                  <DialogDescription>{t("createTrainer")}</DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  <div><Label htmlFor="name">{t("trainerName")}</Label><Input id="name" name="name" required className="mt-1" /></div>
+                  <div><Label htmlFor="email">{t("trainerEmail")}</Label><Input id="email" name="email" type="email" required className="mt-1" /></div>
+                  <div>
+                    <Label>{t("trainerType")}</Label>
+                    <Select value={createType} onValueChange={(v) => setCreateType(v as "personal" | "studio")}>
+                      <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="personal">{t("trainerTypePersonal")}</SelectItem>
+                        <SelectItem value="studio">{t("trainerTypeStudio")}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div><Label htmlFor="expirationDate">{t("membershipExpiration")}</Label><Input id="expirationDate" name="expirationDate" type="date" className="mt-1" /></div>
+                  <div><Label htmlFor="pricePerMonth">{t("pricePerMonth")}</Label><Input id="pricePerMonth" name="pricePerMonth" type="number" step="0.01" className="mt-1" /></div>
+                </div>
+                <DialogFooter>
+                  <Button type="button" variant="outline" onClick={() => setIsCreateDialogOpen(false)}><X className="h-4 w-4" />{t("cancel")}</Button>
+                  <Button type="submit"><Save className="h-4 w-4" />{t("save")}</Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
+        </div>
+
+        {/* Trainer List */}
+        <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
+          {/* Column header – hidden on mobile */}
+          <div className="hidden lg:grid grid-cols-[1fr_1fr_88px_120px_96px_132px] gap-2 px-5 py-2.5 bg-muted/50 border-b border-border">
+            {[t("trainerName"), t("trainerEmail"), t("trainerType"), t("membershipExpiration"), t("pricePerMonth"), t("actions")].map((h) => (
+              <span key={h} className="text-[10px] font-bold text-muted-foreground tracking-widest uppercase">{h}</span>
+            ))}
+          </div>
+
+          {loading ? (
+            <div className="divide-y divide-border">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-3 px-5 py-3.5 animate-pulse">
+                  <div className="w-8 h-8 rounded-full bg-muted shrink-0" />
+                  <div className="flex-1 space-y-1.5">
+                    <div className="h-3.5 bg-muted rounded w-1/3" />
+                    <div className="h-3 bg-muted rounded w-1/2" />
+                  </div>
+                  <div className="h-7 w-24 bg-muted rounded-lg" />
+                </div>
+              ))}
+            </div>
+          ) : trainers.length === 0 ? (
+            <div className="py-12 text-center text-sm text-muted-foreground">{t("noTrainers")}</div>
+          ) : (
+            <div className="divide-y divide-border">
+              {trainers.map((trainer) => {
+                const expDays = trainer.expirationDate
+                  ? Math.ceil((new Date(trainer.expirationDate).getTime() - Date.now()) / 86400000)
+                  : null;
+                const isExpired = expDays !== null && expDays < 0;
+                const isUrgent = expDays !== null && expDays >= 0 && expDays <= 14;
+                const isDeleted = !!trainer.deletedAt;
+                const initials = trainer.name.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2);
+                const isPersonal = trainer.type === "personal";
+
+                return (
+                  <div
+                    key={trainer._id}
+                    className={`group flex flex-col lg:grid lg:grid-cols-[1fr_1fr_88px_120px_96px_132px] gap-x-2 gap-y-1.5 px-5 py-3.5 items-start lg:items-center transition-colors ${
+                      isDeleted ? "opacity-50 bg-destructive/5" : "hover:bg-muted/30"
+                    }`}
+                  >
+                    {/* Name + avatar */}
+                    <div className="flex items-center gap-2.5 min-w-0 w-full">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
+                        isPersonal ? "bg-primary/10 border border-primary/20" : "bg-cyan-500/10 border border-cyan-500/20"
+                      }`}>
+                        <span className={`text-[10px] font-bold ${isPersonal ? "text-primary" : "text-cyan-600"}`}>{initials}</span>
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-sm font-semibold text-foreground truncate">{trainer.name}</div>
+                        {isDeleted && <div className="text-[10px] font-medium text-destructive">deleted</div>}
+                        {/* Email on mobile */}
+                        <div className="text-xs text-muted-foreground truncate lg:hidden">{trainer.email}</div>
+                      </div>
+                    </div>
+
+                    {/* Email – desktop only */}
+                    <span className="hidden lg:block text-xs text-muted-foreground truncate">{trainer.email}</span>
+
+                    {/* Type badge */}
+                    <div className="hidden lg:block">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                        isPersonal
+                          ? "bg-primary/10 text-primary border-primary/20"
+                          : "bg-cyan-500/10 text-cyan-600 border-cyan-500/20"
+                      }`}>
+                        {isPersonal ? t("trainerTypePersonal") : t("trainerTypeStudio")}
+                      </span>
+                    </div>
+
+                    {/* Expiry */}
+                    <span className={`hidden lg:block text-xs font-bold ${
+                      isExpired ? "text-destructive" : isUrgent ? "text-warning" : "text-muted-foreground"
+                    }`}>
+                      {trainer.expirationDate
+                        ? isExpired ? t("expired") : expDays === 0 ? t("today") : `${expDays}d`
+                        : "—"}
+                    </span>
+
+                    {/* Price */}
+                    <span className="hidden lg:block text-xs text-muted-foreground">
+                      {trainer.pricePerMonth ? `${trainer.pricePerMonth} zł` : "—"}
+                    </span>
+
+                    {/* Actions */}
+                    <div className="flex gap-1.5 items-center lg:ml-0 mt-1 lg:mt-0">
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button
+                              className="p-1.5 rounded-lg bg-success/10 text-success border border-success/20 hover:bg-success/20 transition-colors cursor-pointer"
+                              onClick={() => { setSelectedTrainer(trainer); setIsProlongDialogOpen(true); }}
+                            >
+                              <Calendar className="size-3.5" />
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent>{t("prolongMembership")}</TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button
+                              className="p-1.5 rounded-lg bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20 transition-colors cursor-pointer"
+                              onClick={() => {
+                                setEditingTrainer(trainer);
+                                setEditType(trainer.type === "personal" ? "personal" : "studio");
+                                setEditingClientCount(null);
+                                setIsEditDialogOpen(true);
+                                fetch(`/api/admin/trainers/${trainer._id}`)
+                                  .then((r) => r.json())
+                                  .then((d) => setEditingClientCount(d.clientsCount ?? 0))
+                                  .catch(() => setEditingClientCount(0));
+                              }}
+                            >
+                              <Pencil className="size-3.5" />
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent>{t("edit")}</TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button
+                              className="p-1.5 rounded-lg bg-muted text-muted-foreground border border-border hover:bg-muted/80 transition-colors cursor-pointer"
+                              onClick={() => { setSelectedTrainer(trainer); setIsNoteDialogOpen(true); }}
+                            >
+                              <StickyNote className="size-3.5" />
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent>{t("addNote")}</TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button
+                              className="p-1.5 rounded-lg bg-destructive/10 text-destructive border border-destructive/20 hover:bg-destructive/20 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                              onClick={() => handleDelete(trainer._id)}
+                              disabled={!!trainer.deletedAt}
+                            >
+                              <Trash2 className="size-3.5" />
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent>{t("delete")}</TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {pagination && trainers.length > 0 && (
+            <div className="border-t border-border px-5 py-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground">
+                  {t("page")} {pagination.page} / {pagination.totalPages} ({pagination.total} {t("items")})
+                </span>
+                <Select value={pageSize.toString()} onValueChange={(v) => setPageSize(parseInt(v))}>
+                  <SelectTrigger className="h-7 w-20 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {[10, 20, 50, 100].map((n) => <SelectItem key={n} value={n.toString()}>{n}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-center gap-1">
+                <Button variant="outline" size="sm" disabled={pagination.page === 1} onClick={() => setPage(1)}><ChevronsLeft className="h-3.5 w-3.5" /></Button>
+                <Button variant="outline" size="sm" disabled={pagination.page === 1} onClick={() => setPage(page - 1)}><ChevronLeft className="h-3.5 w-3.5" /></Button>
+                <span className="px-2 text-xs text-muted-foreground">{pagination.page}</span>
+                <Button variant="outline" size="sm" disabled={pagination.page === pagination.totalPages} onClick={() => setPage(page + 1)}><ChevronRight className="h-3.5 w-3.5" /></Button>
+                <Button variant="outline" size="sm" disabled={pagination.page === pagination.totalPages} onClick={() => setPage(pagination.totalPages)}><ChevronsRight className="h-3.5 w-3.5" /></Button>
+              </div>
+            </div>
+          )}
+        </div>
 
       {/* Edit Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
@@ -753,7 +623,7 @@ export function TrainersManagement({ lang }: { lang: string }) {
                   <X className="h-4 w-4" />
                   {t("cancel")}
                 </Button>
-                <Button type="submit" className="bg-black text-white hover:bg-black/90 dark:bg-primary dark:text-primary-foreground dark:hover:bg-primary/90">
+                <Button type="submit" >
                   <Save className="h-4 w-4" />
                   {t("save")}
                 </Button>
@@ -782,19 +652,19 @@ export function TrainersManagement({ lang }: { lang: string }) {
             </DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-2 gap-2 py-4">
-            <Button onClick={() => handleProlong(1)} className="bg-black text-white hover:bg-black/90 dark:bg-primary dark:text-primary-foreground dark:hover:bg-primary/90">
+            <Button onClick={() => handleProlong(1)} >
               <Calendar className="h-4 w-4" />
               {t("prolong1Month")}
             </Button>
-            <Button onClick={() => handleProlong(3)} className="bg-black text-white hover:bg-black/90 dark:bg-primary dark:text-primary-foreground dark:hover:bg-primary/90">
+            <Button onClick={() => handleProlong(3)} >
               <Calendar className="h-4 w-4" />
               {t("prolong3Months")}
             </Button>
-            <Button onClick={() => handleProlong(6)} className="bg-black text-white hover:bg-black/90 dark:bg-primary dark:text-primary-foreground dark:hover:bg-primary/90">
+            <Button onClick={() => handleProlong(6)} >
               <Calendar className="h-4 w-4" />
               {t("prolong6Months")}
             </Button>
-            <Button onClick={() => handleProlong(12)} className="bg-black text-white hover:bg-black/90 dark:bg-primary dark:text-primary-foreground dark:hover:bg-primary/90">
+            <Button onClick={() => handleProlong(12)} >
               <Calendar className="h-4 w-4" />
               {t("prolong12Months")}
             </Button>
@@ -841,7 +711,7 @@ export function TrainersManagement({ lang }: { lang: string }) {
                   <X className="h-4 w-4" />
                   {t("cancel")}
                 </Button>
-                <Button type="submit" className="bg-black text-white hover:bg-black/90 dark:bg-primary dark:text-primary-foreground dark:hover:bg-primary/90">
+                <Button type="submit" >
                   <Save className="h-4 w-4" />
                   {t("save")}
                 </Button>

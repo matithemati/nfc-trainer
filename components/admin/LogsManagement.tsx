@@ -149,10 +149,10 @@ export function LogsManagement({ lang }: { lang: string }) {
   return (
     <div className="min-h-screen bg-background">
       <AdminNavbar lang={lang} />
-      <div className="container mx-auto px-4 py-8 space-y-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6 space-y-4 sm:space-y-6">
         {/* Header */}
         <div>
-          <h1 className="text-3xl font-bold text-foreground">{t("logs")}</h1>
+          <h1 className="text-xl font-bold text-foreground">{t("logs")}</h1>
         </div>
 
       {/* Filters */}
@@ -252,6 +252,7 @@ export function LogsManagement({ lang }: { lang: string }) {
       <Card>
         <CardContent className="p-0">
           {loading ? (
+            <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -278,10 +279,12 @@ export function LogsManagement({ lang }: { lang: string }) {
                 ))}
               </TableBody>
             </Table>
+            </div>
           ) : logs.length === 0 ? (
             <div className="p-4">{t("noLogs")}</div>
           ) : (
             <>
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -332,6 +335,7 @@ export function LogsManagement({ lang }: { lang: string }) {
                   ))}
                 </TableBody>
               </Table>
+              </div>
               {pagination && (
                 <div className="flex flex-col gap-4 p-4 border-t">
                   {/* Top row: Page info and page size selector */}

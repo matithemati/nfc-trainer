@@ -3,16 +3,15 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
-import { Button } from "@/components/ui/button";
 import { getMessages } from "@/lib/i18n";
 import { LanguageSwitcher } from "@/components/client/LanguageSwitcher";
 import { ThemeToggle } from "@/components/client/ThemeToggle";
-import { 
-  LayoutDashboard, 
-  UserCheck, 
-  Users, 
-  FileText, 
-  LogOut 
+import {
+  LayoutDashboard,
+  UserCheck,
+  Users,
+  FileText,
+  LogOut,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -28,84 +27,68 @@ export function AdminNavbar({ lang }: { lang: string }) {
   const pathname = usePathname();
 
   const navItems: NavItem[] = [
-    {
-      href: `/${lang}/admin`,
-      label: t("dashboard"),
-      icon: LayoutDashboard,
-    },
-    {
-      href: `/${lang}/admin/trainers`,
-      label: t("trainers"),
-      icon: UserCheck,
-    },
-    {
-      href: `/${lang}/admin/clients`,
-      label: t("clients"),
-      icon: Users,
-    },
-    {
-      href: `/${lang}/admin/logs`,
-      label: t("logs"),
-      icon: FileText,
-    },
+    { href: `/${lang}/admin`,          label: t("dashboard"), icon: LayoutDashboard },
+    { href: `/${lang}/admin/trainers`, label: t("trainers"),  icon: UserCheck },
+    { href: `/${lang}/admin/clients`,  label: t("clients"),   icon: Users },
+    { href: `/${lang}/admin/logs`,     label: t("logs"),       icon: FileText },
   ];
 
   const isActive = (href: string) => {
-    if (href === `/${lang}/admin`) {
-      return pathname === href;
-    }
+    if (href === `/${lang}/admin`) return pathname === href;
     return pathname?.startsWith(href);
   };
 
   return (
-    <nav className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="container mx-auto flex h-16 items-center justify-between px-4">
-        {/* Logo/Title */}
-        <div className="flex items-center">
-          <h2 className="text-base font-medium text-foreground tracking-wider uppercase opacity-90">
-            {t("adminPanel")}
-          </h2>
+    <nav className="sticky top-0 z-50 w-full flex items-center h-14 px-4 sm:px-5 bg-card border-b border-border gap-3">
+      {/* Logo */}
+      <div className="flex items-center gap-2 shrink-0 mr-2">
+        <div className="w-7 h-7 rounded-lg bg-destructive flex items-center justify-center shrink-0">
+          <span className="text-[9px] font-extrabold text-white tracking-tight">ADM</span>
         </div>
+        <span className="text-sm font-bold text-foreground tracking-tight hidden sm:inline">Admin Panel</span>
+      </div>
 
-        {/* Navigation Links */}
-        <div className="flex items-center gap-1">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const active = isActive(item.href);
-            return (
-              <Button
-                key={item.href}
-                variant={active ? "secondary" : "ghost"}
-                size="sm"
-                onClick={() => router.push(item.href)}
-                className={cn(
-                  "gap-2 transition-colors",
-                  active 
-                    ? "bg-secondary text-secondary-foreground font-medium" 
-                    : "text-foreground hover:bg-accent hover:text-accent-foreground"
-                )}
-              >
-                <Icon className="h-4 w-4" />
-                <span className="hidden sm:inline">{item.label}</span>
-              </Button>
-            );
-          })}
-        </div>
+      {/* Nav tabs */}
+      <div className="flex items-center gap-0.5 flex-1 overflow-x-auto no-scrollbar">
+        {navItems.map((item) => {
+          const Icon = item.icon;
+          const active = isActive(item.href);
+          return (
+            <button
+              key={item.href}
+              onClick={() => router.push(item.href)}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all cursor-pointer",
+                active
+                  ? "bg-primary/10 text-primary font-semibold"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
+              )}
+            >
+              <Icon className="size-3.5" />
+              <span className="hidden sm:inline">{item.label}</span>
+            </button>
+          );
+        })}
+      </div>
 
-        {/* Right Side Actions */}
-        <div className="flex items-center gap-2">
-          <ThemeToggle lang={lang} />
-          <LanguageSwitcher lang={lang as "pl" | "en"} />
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => signOut()}
-            className="gap-2 text-foreground hover:bg-accent hover:text-accent-foreground"
-          >
-            <LogOut className="h-4 w-4" />
-            <span className="hidden sm:inline">{t("logout")}</span>
-          </Button>
+      {/* Right controls */}
+      <div className="flex items-center gap-2 shrink-0">
+        <LanguageSwitcher lang={lang as "pl" | "en"} />
+        <ThemeToggle lang={lang} />
+        <div className="w-px h-5 bg-border mx-0.5" />
+        <div className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg bg-destructive/10 border border-destructive/20">
+          <div className="w-5 h-5 rounded-md bg-destructive/20 flex items-center justify-center">
+            <span className="text-[9px] font-bold text-destructive">A</span>
+          </div>
+          <span className="text-xs font-semibold text-foreground hidden sm:inline">admin</span>
         </div>
+        <button
+          onClick={() => signOut()}
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-all cursor-pointer"
+        >
+          <LogOut className="size-3.5" />
+          <span className="hidden sm:inline">{t("logout")}</span>
+        </button>
       </div>
     </nav>
   );

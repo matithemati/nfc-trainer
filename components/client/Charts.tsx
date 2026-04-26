@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, Legend } from "recharts";
+import { LineChart, Line, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, Legend } from "recharts";
 import { Button } from "@/components/ui/button";
 import { getMessages } from "@/lib/i18n";
 import { Calendar, ChevronLeft, ChevronRight } from "lucide-react";
@@ -118,32 +118,35 @@ export function WeightChart({ data, lang }: { data: WeightPoint[]; lang?: string
         ) : (
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={filteredData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
               <XAxis
                 dataKey="date"
-                tick={{ fontSize: 12 }}
-                stroke="#6b7280"
+                tick={{ fontSize: 11, fill: "var(--tx-3)" }}
+                stroke="var(--border)"
               />
               <YAxis
                 domain={yAxisDomain}
-                tick={{ fontSize: 12 }}
-                stroke="#6b7280"
-                label={{ value: t("weightLabel"), angle: -90, position: "insideLeft" }}
+                tick={{ fontSize: 11, fill: "var(--tx-3)" }}
+                stroke="var(--border)"
+                label={{ value: t("weightLabel"), angle: -90, position: "insideLeft", style: { fill: "var(--tx-3)" } }}
               />
               <Tooltip
                 contentStyle={{
-                  backgroundColor: "#fff",
-                  border: "1px solid #e5e7eb",
-                  borderRadius: "6px",
+                  backgroundColor: "var(--surface)",
+                  border: "1px solid var(--border)",
+                  borderRadius: "8px",
+                  fontSize: 12,
                 }}
+                itemStyle={{ color: "var(--tx-1)" }}
+                labelStyle={{ color: "var(--tx-3)" }}
               />
               <Line
                 type="monotone"
                 dataKey="weight"
-                stroke="#22c55e"
-                strokeWidth={2}
-                dot={{ r: 4, fill: "#22c55e" }}
-                activeDot={{ r: 6 }}
+                stroke="var(--accent)"
+                strokeWidth={2.5}
+                dot={{ r: 3, fill: "var(--accent)" }}
+                activeDot={{ r: 5, fill: "var(--accent)" }}
               />
             </LineChart>
           </ResponsiveContainer>
@@ -249,15 +252,17 @@ export function DimensionsChart({
         ) : (
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={filteredData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-              <XAxis dataKey="date" tick={{ fontSize: 11 }} stroke="#6b7280" />
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+              <XAxis dataKey="date" tick={{ fontSize: 11, fill: "var(--tx-3)" }} stroke="var(--border)" />
               <YAxis
-                tick={{ fontSize: 11 }}
-                stroke="#6b7280"
-                label={{ value: t("dimensionsUnit"), angle: -90, position: "insideLeft" }}
+                tick={{ fontSize: 11, fill: "var(--tx-3)" }}
+                stroke="var(--border)"
+                label={{ value: t("dimensionsUnit"), angle: -90, position: "insideLeft", style: { fill: "var(--tx-3)" } }}
               />
               <Tooltip
-                contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "6px" }}
+                contentStyle={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)", borderRadius: "8px", fontSize: 12 }}
+                itemStyle={{ color: "var(--tx-1)" }}
+                labelStyle={{ color: "var(--tx-3)" }}
                 formatter={(value: number | undefined, name: string | undefined) => [`${value ?? ""} cm`, name ? dimensionLabel(name) : ""]}
               />
               <Legend formatter={(value) => dimensionLabel(value)} />
@@ -277,6 +282,56 @@ export function DimensionsChart({
           </ResponsiveContainer>
         )}
       </div>
+    </div>
+  );
+}
+
+export function WeightTrendChart({ data, lang }: { data: WeightPoint[]; lang?: string }) {
+  const { t, lang: currentLang } = getMessages(lang);
+  const locale = currentLang === "pl" ? "pl-PL" : "en-US";
+
+  const chartData = [...data]
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .slice(-20)
+    .map((p) => ({
+      weight: p.weight,
+      label: new Date(p.date + "T12:00:00").toLocaleDateString(locale, { month: "short", day: "numeric" }),
+    }));
+
+  if (chartData.length < 2) {
+    return (
+      <div className="h-[150px] flex items-center justify-center text-sm text-muted-foreground">
+        {t("noWeightData")}
+      </div>
+    );
+  }
+
+  const vals = chartData.map((d) => d.weight);
+  const min = Math.min(...vals);
+  const max = Math.max(...vals);
+  const pad = (max - min) * 0.15 || 1;
+
+  return (
+    <div className="h-[150px]">
+      <ResponsiveContainer width="100%" height="100%">
+        <AreaChart data={chartData} margin={{ top: 5, right: 12, bottom: 5, left: 0 }}>
+          <defs>
+            <linearGradient id="wGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#7c3aed" stopOpacity={0.18} />
+              <stop offset="100%" stopColor="#7c3aed" stopOpacity={0} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid strokeDasharray="0" horizontal stroke="var(--border)" vertical={false} />
+          <XAxis dataKey="label" tick={{ fontSize: 10, fill: "var(--tx-3)" }} stroke="transparent" interval="preserveStartEnd" />
+          <YAxis domain={[min - pad, max + pad]} tick={{ fontSize: 10, fill: "var(--tx-3)" }} stroke="transparent" width={36} />
+          <Tooltip
+            contentStyle={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)", borderRadius: "8px", fontSize: 12 }}
+            itemStyle={{ color: "var(--tx-1)" }}
+            labelStyle={{ color: "var(--tx-3)" }}
+          />
+          <Area type="monotone" dataKey="weight" stroke="#7c3aed" strokeWidth={2.5} fill="url(#wGrad)" dot={false} activeDot={{ r: 5, fill: "#7c3aed" }} />
+        </AreaChart>
+      </ResponsiveContainer>
     </div>
   );
 }

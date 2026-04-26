@@ -1,7 +1,6 @@
 "use client";
 
 import { useTheme } from "@/components/providers/ThemeProvider";
-import { Button } from "@/components/ui/button";
 import { Sun, Moon } from "lucide-react";
 import { getMessages } from "@/lib/i18n";
 
@@ -12,19 +11,13 @@ export function ThemeToggle({ lang }: Props) {
   const { t } = getMessages(lang);
 
   return (
-    <Button
-      variant="ghost"
-      size="icon"
+    <button
       onClick={toggleTheme}
-      className="h-9 w-9"
       aria-label={theme === "light" ? t("darkMode") : t("lightMode")}
-      title={theme === "light" ? t("darkMode") : t("lightMode")}
+      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-border bg-muted/60 hover:bg-muted text-muted-foreground text-xs font-medium transition-all"
     >
-      {theme === "light" ? (
-        <Moon className="h-4 w-4" />
-      ) : (
-        <Sun className="h-4 w-4" />
-      )}
-    </Button>
+      {theme === "light" ? <Moon className="size-3.5" /> : <Sun className="size-3.5" />}
+      <span className="hidden sm:inline">{theme === "light" ? t("darkMode") : t("lightMode")}</span>
+    </button>
   );
 }

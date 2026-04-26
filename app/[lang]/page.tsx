@@ -10,7 +10,7 @@ export default async function HomePage({
   const { t } = getMessages(lang);
 
   return (
-    <div className="space-y-4">
+    <div className="max-w-5xl mx-auto px-4 py-8 space-y-4">
       <p>{t("appTitle")} - {t("homeDescription")}</p>
       <p>
         {t("homeInstructions")}

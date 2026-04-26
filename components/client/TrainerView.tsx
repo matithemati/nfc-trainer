@@ -13,7 +13,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { getMessages } from "@/lib/i18n";
 import { cachedFetch, invalidateCachePrefix } from "@/lib/fetch-cache";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { WeightChart, DimensionsChart } from "./Charts";
+import { WeightChart, DimensionsChart, WeightTrendChart } from "./Charts";
 import { TrainerMenuBar } from "./TrainerMenuBar";
 import { MembershipStatus } from "./MembershipStatus";
 import { RpeSelector, RpeBadge } from "./RpeSelector";
@@ -182,11 +182,13 @@ export function TrainerView({
   const [storeMessage, setStoreMessage] = useState("");
   const [storeSettingsSaved, setStoreSettingsSaved] = useState(false);
   const [trainerTab, setTrainerTab] = useState<"clients" | "library" | "account">("clients");
+  const [mobileShowSidebar, setMobileShowSidebar] = useState(true);
   const [allClients, setAllClients] = useState<Client[]>([]);
   const [clientSearchResults, setClientSearchResults] = useState<Client[]>([]);
   const [exerciseSearchResults, setExerciseSearchResults] = useState<string[]>([]);
   const [clientExerciseSets, setClientExerciseSets] = useState<ExerciseSet[]>([]);
   const [clientDimensionsDesc, setClientDimensionsDesc] = useState<DimensionEntry[]>([]);
+  const [copied, setCopied] = useState(false);
 
   const updateWorkoutExercise = (index: number, field: keyof WorkoutExercise, value: number | undefined) => {
     setWorkoutExercises(prev => prev.map((ex, idx) => idx === index ? { ...ex, [field]: value } : ex));
@@ -431,6 +433,7 @@ export function TrainerView({
 
   const selectClient = async (c: Client) => {
     setSelectedClient(c);
+    setMobileShowSidebar(false);
     setWorkoutPlan(c.workoutPlan);
     setDietPlan(c.dietPlan);
     setClientActiveTab("workouts");
@@ -720,9 +723,9 @@ export function TrainerView({
   };
 
   if (!trainer && !error) return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
+    <div className="h-[100dvh] flex items-center justify-center bg-background">
       <div className="flex flex-col items-center gap-4">
-        <Spinner className="size-8" />
+        <Spinner className="size-8 text-primary" />
         <p className="text-sm text-muted-foreground">{t("loading")}</p>
       </div>
     </div>
@@ -730,9 +733,11 @@ export function TrainerView({
 
   if (error && !trainer) {
     return (
-      <Alert variant="destructive">
-        <AlertDescription>{error}</AlertDescription>
-      </Alert>
+      <div className="h-[100dvh] flex items-center justify-center p-4">
+        <Alert variant="destructive" className="max-w-md">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      </div>
     );
   }
 
@@ -744,178 +749,185 @@ export function TrainerView({
 
   if (!isMembershipActive) {
     return (
-      <div className="space-y-4">
-        <TrainerMenuBar trainer={trainer} clientsCount={clients.length} lang={lang} onLogout={handleLogout} />
-        <Card className="w-full border-2 border-destructive/20">
-          <CardContent className="pt-8 pb-8">
-            <div className="flex flex-col items-center justify-center text-center space-y-6 max-w-2xl mx-auto">
-              <div className="rounded-full bg-destructive/10 p-4">
-                <AlertCircle className="size-12 text-destructive" />
-              </div>
-              <div className="space-y-3">
-                <h2 className="text-2xl font-bold text-foreground">{t("membershipInactive")}</h2>
-                <p className="text-muted-foreground text-base leading-relaxed">{t("contactAdminMessage")}</p>
-              </div>
-              <div className="flex items-center gap-2 px-4 py-3 bg-muted/50 rounded-lg border border-border">
-                <Mail className="size-5 text-muted-foreground" />
-                <span className="text-sm font-medium text-foreground">{t("contactAdmin")}</span>
-              </div>
+      <div className="flex flex-col h-[100dvh] overflow-hidden">
+        <TrainerMenuBar trainer={trainer} clientsCount={clients.length} lang={lang} onLogout={handleLogout} activeTab={trainerTab} onTabChange={setTrainerTab} />
+        <div className="flex-1 flex items-center justify-center p-6">
+          <div className="max-w-md w-full bg-card border border-border rounded-2xl p-8 text-center space-y-4 shadow-sm">
+            <div className="w-16 h-16 rounded-full bg-destructive/10 flex items-center justify-center mx-auto">
+              <AlertCircle className="size-8 text-destructive" />
             </div>
-          </CardContent>
-        </Card>
+            <h2 className="text-xl font-bold text-foreground">{t("membershipInactive")}</h2>
+            <p className="text-muted-foreground text-sm leading-relaxed">{t("contactAdminMessage")}</p>
+            <div className="flex items-center gap-2 px-4 py-3 bg-muted/50 rounded-xl border border-border">
+              <Mail className="size-4 text-muted-foreground shrink-0" />
+              <span className="text-sm font-medium text-foreground">{t("contactAdmin")}</span>
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-4">
-      <TrainerMenuBar trainer={trainer} clientsCount={clients.length} lang={lang} onLogout={handleLogout} />
-
-      {/* Top-level tabs */}
-      <div className="overflow-x-auto w-full">
-        <div className="flex gap-2 border-b bg-card min-w-max rounded-t-xl">
-          {(["clients", "library", "account"] as const).map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setTrainerTab(tab)}
-              className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium transition-colors whitespace-nowrap rounded-t-lg cursor-pointer ${
-                trainerTab === tab ? "border-b-2 border-primary text-foreground font-semibold bg-muted/30" : "text-foreground/70 hover:text-foreground hover:bg-muted/50"
-              }`}
-            >
-              {tab === "clients" ? (
-                <><Users className="size-3.5" /><span className="ml-1">{t("clients")}</span></>
-              ) : tab === "library" ? (
-                <><Dumbbell className="size-3.5" /><span className="ml-1">{t("exercisesTab")}</span></>
-              ) : (
-                <><User className="size-3.5" /><span className="ml-1">{t("account")}</span></>
-              )}
-            </button>
-          ))}
-        </div>
-      </div>
+    <div className="flex flex-col h-[100dvh] overflow-hidden bg-background">
+      <TrainerMenuBar trainer={trainer} clientsCount={clients.length} lang={lang} onLogout={handleLogout} activeTab={trainerTab} onTabChange={setTrainerTab} />
 
       {/* TAB: Clients */}
       {trainerTab === "clients" && (
-        <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-4 items-start">
-          {/* Left: Client Roster */}
-          <Card>
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-sm font-semibold">
-                  {t("clients")} <span className="text-muted-foreground font-normal">({allClients.length}/{trainer.maxClients})</span>
-                </CardTitle>
+        <div className="flex flex-1 overflow-hidden">
+          {/* Left sidebar: Client Roster */}
+          <div className={`${mobileShowSidebar ? "flex" : "hidden md:flex"} flex-col w-full md:w-60 shrink-0 border-r border-border bg-card overflow-hidden`}>
+            <div className="p-3 border-b border-border">
+              <div className="flex items-center justify-between mb-2.5">
+                <span className="text-[11px] font-bold text-muted-foreground tracking-wider uppercase">
+                  {t("clients")} · {allClients.length}/{trainer.maxClients}
+                </span>
                 {allClients.length < trainer.maxClients && !showAddClient && (
-                  <Button size="sm" variant="outline" className="h-7 w-7 p-0" onClick={() => setShowAddClient(true)}>
-                    <Plus className="size-3.5" />
+                  <Button size="sm" variant="outline" className="h-6 w-6 p-0 rounded-md" onClick={() => setShowAddClient(true)}>
+                    <Plus className="size-3" />
                   </Button>
                 )}
               </div>
               {showAddClient && (
-                <div className="flex gap-1.5 mt-2">
+                <div className="flex gap-1 mb-2">
                   <Input
                     value={newClientName}
                     onChange={(e) => setNewClientName(e.target.value)}
                     placeholder={t("clientNamePlaceholder")}
-                    className="flex-1 h-8 text-sm"
+                    className="flex-1 h-7 text-xs"
                     onKeyDown={(e) => {
                       if (e.key === "Enter") createClient();
                       if (e.key === "Escape") { setShowAddClient(false); setNewClientName(""); }
                     }}
                     autoFocus
                   />
-                  <Button size="sm" className="h-8 px-2" disabled={!newClientName.trim()} onClick={createClient}><Check className="size-3.5" /></Button>
-                  <Button size="sm" variant="outline" className="h-8 px-2" onClick={() => { setShowAddClient(false); setNewClientName(""); }}><X className="size-3.5" /></Button>
+                  <Button size="sm" className="h-7 px-1.5" disabled={!newClientName.trim()} onClick={createClient}><Check className="size-3" /></Button>
+                  <Button size="sm" variant="outline" className="h-7 px-1.5" onClick={() => { setShowAddClient(false); setNewClientName(""); }}><X className="size-3" /></Button>
                 </div>
               )}
-              {clients.length > 0 && (
-                <div className="relative mt-2">
-                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground size-3.5" />
-                  <Input value={clientSearchTerm} onChange={(e) => setClientSearchTerm(e.target.value)} placeholder={t("searchClients")} className="pl-8 h-8 text-sm" />
-                </div>
-              )}
-            </CardHeader>
-            <CardContent className="pt-0 space-y-0.5 max-h-[60vh] overflow-y-auto">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground size-3" />
+                <Input value={clientSearchTerm} onChange={(e) => setClientSearchTerm(e.target.value)} placeholder={t("searchClients")} className="pl-7 h-7 text-xs" />
+              </div>
+            </div>
+            <div className="flex-1 min-h-0 overflow-y-auto p-1.5 space-y-0.5">
               {clients.length === 0 ? (
-                <p className="text-muted-foreground text-sm py-4 text-center">{t("noClientsYet")}</p>
+                <p className="text-muted-foreground text-xs py-6 text-center">{t("noClientsYet")}</p>
               ) : (
-                (clientSearchTerm ? clientSearchResults : clients)
-                  .map((c) => (
-                    <div
-                      key={c._id}
-                      className={`group flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer transition-colors ${
-                        selectedClient?._id === c._id ? "bg-muted" : "hover:bg-muted/50"
-                      }`}
-                      onClick={() => selectClient(c)}
-                    >
-                      {renamingClientId === c._id ? (
-                        <div className="flex-1 flex gap-1 items-center" onClick={(e) => e.stopPropagation()}>
-                          <Input
-                            value={renameClientName}
-                            onChange={(e) => setRenameClientName(e.target.value)}
-                            className="h-7 text-sm flex-1"
-                            autoFocus
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") renameClient(c._id, renameClientName);
-                              if (e.key === "Escape") { setRenamingClientId(null); setRenameClientName(""); }
-                            }}
-                          />
-                          <Button size="sm" variant="ghost" className="h-7 px-1.5" onClick={() => renameClient(c._id, renameClientName)}><Check className="size-3" /></Button>
-                          <Button size="sm" variant="ghost" className="h-7 px-1.5" onClick={() => { setRenamingClientId(null); setRenameClientName(""); }}><X className="size-3" /></Button>
-                        </div>
-                      ) : (
-                        <>
-                          <span className="flex-1 text-sm font-medium truncate">{c.name}</span>
-                          <button
-                            className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-muted rounded"
-                            onClick={(e) => { e.stopPropagation(); setRenamingClientId(c._id); setRenameClientName(c.name); }}
-                            title={t("renameClient")}
-                          >
+                (clientSearchTerm ? clientSearchResults : clients).map((c) => (
+                  <div
+                    key={c._id}
+                    className={`group flex items-center gap-2 px-2.5 py-2 rounded-lg cursor-pointer transition-all ${
+                      selectedClient?._id === c._id ? "bg-primary/10" : "hover:bg-muted/60"
+                    }`}
+                    onClick={() => selectClient(c)}
+                  >
+                    <div className="w-7 h-7 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
+                      <span className="text-[9px] font-bold text-primary">
+                        {c.name.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2)}
+                      </span>
+                    </div>
+                    {renamingClientId === c._id ? (
+                      <div className="flex-1 flex gap-1 items-center" onClick={(e) => e.stopPropagation()}>
+                        <Input value={renameClientName} onChange={(e) => setRenameClientName(e.target.value)} className="h-6 text-xs flex-1" autoFocus
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") renameClient(c._id, renameClientName);
+                            if (e.key === "Escape") { setRenamingClientId(null); setRenameClientName(""); }
+                          }} />
+                        <Button size="sm" variant="ghost" className="h-6 px-1" onClick={() => renameClient(c._id, renameClientName)}><Check className="size-3" /></Button>
+                        <Button size="sm" variant="ghost" className="h-6 px-1" onClick={() => { setRenamingClientId(null); setRenameClientName(""); }}><X className="size-3" /></Button>
+                      </div>
+                    ) : (
+                      <>
+                        <span className={`flex-1 text-sm truncate ${selectedClient?._id === c._id ? "font-semibold text-primary" : "font-medium text-foreground"}`}>{c.name}</span>
+                        <div className="flex items-center gap-1">
+                          {selectedClient?._id === c._id && <div className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" />}
+                          <button className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 hover:bg-muted rounded"
+                            onClick={(e) => { e.stopPropagation(); setRenamingClientId(c._id); setRenameClientName(c.name); }} title={t("renameClient")}>
                             <Pencil className="size-3 text-muted-foreground" />
                           </button>
-                        </>
-                      )}
-                    </div>
-                  ))
+                        </div>
+                      </>
+                    )}
+                  </div>
+                ))
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </div>
 
           {/* Right: Client Workspace */}
+          <div className={`${mobileShowSidebar ? "hidden md:flex" : "flex"} flex-1 flex-col overflow-hidden`}>
           {!selectedClient ? (
-            <div className="flex items-center justify-center h-48 rounded-lg border-2 border-dashed border-muted">
-              <p className="text-muted-foreground text-sm">{t("selectClientToStart")}</p>
+            <div className="flex-1 flex flex-col items-center justify-center gap-3 text-muted-foreground">
+              <div className="w-14 h-14 rounded-2xl bg-card border border-border flex items-center justify-center">
+                <Users className="size-6 text-muted-foreground" />
+              </div>
+              <p className="text-sm font-medium">{t("selectClientToStart")}</p>
             </div>
           ) : (
-            <Card>
-              <CardHeader className="pb-3">
-                <div>
-                  <CardTitle>{selectedClient.name}</CardTitle>
-                  <a
-                    href={`/${lang}/c/${selectedClient._id}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs text-muted-foreground font-mono hover:underline hover:text-foreground transition-colors"
-                  >
-                    {t("nfcId")}: {selectedClient._id}
-                  </a>
-                </div>
-                <div className="overflow-x-auto -mx-2 px-2 pt-2">
-                  <div className="flex gap-2 border-b bg-card min-w-max rounded-t-xl">
-                    {(["workouts", "history", "progress", "plans"] as const).map((tab) => (
-                      <button
-                        key={tab}
-                        onClick={() => setClientActiveTab(tab)}
-                        className={`px-4 py-2 text-sm font-medium transition-colors whitespace-nowrap rounded-t-lg cursor-pointer ${
-                          clientActiveTab === tab ? "border-b-2 border-primary text-foreground font-semibold bg-muted/30" : "text-foreground/70 hover:text-foreground hover:bg-muted/50"
-                        }`}
-                      >
-                        {tab === "workouts" ? t("addWorkout") : tab === "history" ? t("workoutHistory") : tab === "progress" ? t("progress") : `${t("workoutsPlan")} & ${t("dietPlan")}`}
-                      </button>
-                    ))}
+            <div className="flex-1 flex flex-col overflow-hidden">
+              {/* Mobile back button */}
+              <div className="md:hidden flex items-center gap-2 px-4 py-2 border-b border-border bg-card shrink-0">
+                <button
+                  onClick={() => setMobileShowSidebar(true)}
+                  className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                >
+                  <ChevronLeft className="size-4" />
+                  {t("clients")}
+                </button>
+              </div>
+              {/* Client header + sub-tabs */}
+              {(() => {
+                const AVATAR_PALETTE = ["#7c3aed","#0891b2","#059669","#d97706","#dc2626","#db2777","#2563eb"];
+                const avatarColor = AVATAR_PALETTE[selectedClient.name.split("").reduce((a,c) => a+c.charCodeAt(0), 0) % AVATAR_PALETTE.length];
+                const initials = selectedClient.name.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2);
+                return (
+                  <div className="px-4 md:px-6 pt-4 md:pt-5 pb-0 bg-background border-b border-border shrink-0">
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="flex items-center gap-3">
+                        <div
+                          className="w-11 h-11 rounded-full flex items-center justify-center shrink-0 text-[15px] font-bold"
+                          style={{ background: avatarColor + "1a", border: `2px solid ${avatarColor}33`, color: avatarColor }}
+                        >
+                          {initials}
+                        </div>
+                        <div>
+                          <h2 className="text-xl font-extrabold tracking-tight text-foreground">{selectedClient.name}</h2>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <span className="text-[11px] text-muted-foreground font-mono">{t("nfcId")}: {selectedClient._id}</span>
+                            <button
+                              onClick={() => { navigator.clipboard?.writeText(`/${lang}/c/${selectedClient._id}`); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
+                              className="p-0.5 text-muted-foreground hover:text-primary transition-colors cursor-pointer"
+                              title={t("copyLink")}
+                            >
+                              {copied ? <Check className="size-3 text-success" /> : <User className="size-3" />}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                      {trainer?.type && (
+                        <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-primary/10 text-primary border border-primary/20 shrink-0">
+                          {trainer.type === "personal" ? t("personal") : t("studio")}
+                        </span>
+                      )}
+                    </div>
+                    <div className="overflow-x-auto no-scrollbar -mx-1 px-1 pb-1 mb-3">
+                      <div className="inline-flex bg-muted/50 rounded-xl p-1 gap-0.5 min-w-full sm:min-w-0">
+                        {(["workouts", "history", "progress", "plans"] as const).map((tab) => (
+                          <button key={tab} onClick={() => setClientActiveTab(tab)}
+                            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
+                              clientActiveTab === tab ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                            }`}>
+                            {tab === "workouts" ? t("logWorkout") : tab === "history" ? t("workoutHistory") : tab === "progress" ? t("progress") : t("plans")}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </CardHeader>
-              <CardContent>
+                );
+              })()}
+              <div className="flex-1 min-h-0 overflow-y-auto p-4 md:p-6">
+                <div className="max-w-3xl">
                 {/* WORKOUTS TAB */}
                 {clientActiveTab === "workouts" && (
                   <div className="space-y-4">
@@ -1068,362 +1080,227 @@ export function TrainerView({
                 {/* HISTORY TAB */}
                 {clientActiveTab === "history" && (
                   <div className="space-y-3">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <Button variant="outline" size="sm" onClick={() => navigateWorkoutMonth(-1)} title={t("previous")}>
-                        <ChevronLeft className="size-4 md:hidden" /><span className="hidden md:inline">{t("previous")}</span>
-                      </Button>
-                      <Button variant="outline" size="sm" onClick={() => { const today = new Date(); setWorkoutHistoryMonth(today.getMonth()); setWorkoutHistoryYear(today.getFullYear()); }}>
-                        <Calendar className="size-4" /><span className="hidden md:inline ml-1">{t("today")}</span>
-                      </Button>
-                      <Button variant="outline" size="sm" onClick={() => navigateWorkoutMonth(1)} title={t("next")}>
-                        <ChevronRight className="size-4 md:hidden" /><span className="hidden md:inline">{t("next")}</span>
-                      </Button>
-                      <span className="text-sm text-muted-foreground ml-auto">
+                    {/* Month nav */}
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => navigateWorkoutMonth(-1)}
+                        className="bg-card border border-border rounded-lg p-1.5 cursor-pointer text-muted-foreground hover:text-foreground flex items-center transition-colors"
+                        style={{ boxShadow: "0 1px 2px rgba(0,0,0,0.05)" }}
+                      >
+                        <ChevronLeft className="size-4" />
+                      </button>
+                      <span className="flex-1 text-center font-bold text-sm text-foreground">
                         {new Date(workoutHistoryYear, workoutHistoryMonth, 1).toLocaleDateString(currentLang === "pl" ? "pl-PL" : "en-US", { month: "long", year: "numeric" })}
                       </span>
+                      <button
+                        onClick={() => navigateWorkoutMonth(1)}
+                        className="bg-card border border-border rounded-lg p-1.5 cursor-pointer text-muted-foreground hover:text-foreground flex items-center transition-colors"
+                        style={{ boxShadow: "0 1px 2px rgba(0,0,0,0.05)" }}
+                      >
+                        <ChevronRight className="size-4" />
+                      </button>
                     </div>
                     {(() => {
-                        const groupedLogs = groupLogsByDay(workoutLogs);
-                        if (Object.keys(groupedLogs).length === 0) {
-                          return (
-                            <p className="text-muted-foreground text-sm">
-                              {t("noWorkoutsForMonth")} {new Date(workoutHistoryYear, workoutHistoryMonth, 1).toLocaleDateString(lang === "pl" ? "pl-PL" : "en-US", { month: "long", year: "numeric" })}
-                            </p>
-                          );
-                        }
-                        return (
-                          <div className="space-y-3">
-                            {Object.entries(groupedLogs)
-                              .map(([date, dayLogs]) => {
-                                const isExpanded = expandedDays.has(date);
-                                const totalExercises = dayLogs.reduce((sum, log) => sum + (log.exercises?.length || 0), 0);
-                                return (
-                                  <div key={date} className="space-y-3">
-                                    <div className="flex items-center justify-between border-b pb-2">
-                                      <div className="font-semibold text-sm">
-                                        {new Date(date).toLocaleDateString(currentLang === "pl" ? "pl-PL" : "en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
-                                        {" "}({dayLogs.length} {dayLogs.length !== 1 ? t("workouts") : t("workout")}, {totalExercises} {totalExercises !== 1 ? t("exercises") : t("exercise")})
-                                      </div>
-                                      <Button variant="ghost" size="sm" onClick={() => {
-                                        const s = new Set(expandedDays);
-                                        if (isExpanded) s.delete(date); else s.add(date);
-                                        setExpandedDays(s);
-                                      }}>
-                                        {isExpanded ? <><ChevronUp className="size-4" />{t("collapse")}</> : <><ChevronDown className="size-4" />{t("expand")}</>}
-                                      </Button>
+                      const locale = currentLang === "pl" ? "pl-PL" : "en-US";
+                      const groupedLogs = groupLogsByDay(workoutLogs);
+                      const days = Object.keys(groupedLogs).sort((a, b) => b.localeCompare(a));
+                      if (days.length === 0) return (
+                        <div className="text-center text-sm text-muted-foreground py-12">{t("noWorkoutsForMonth")}</div>
+                      );
+                      return (
+                        <div className="space-y-2">
+                          {days.map((date) => {
+                            const dayLogs = groupedLogs[date];
+                            const isExpanded = expandedDays.has(date);
+                            const totalEx = dayLogs.reduce((s, l) => s + (l.exercises?.length || 0), 0);
+                            return (
+                              <div key={date}>
+                                <div
+                                  onClick={() => { const s = new Set(expandedDays); s.has(date) ? s.delete(date) : s.add(date); setExpandedDays(s); }}
+                                  className="flex items-center px-4 py-3.5 bg-card rounded-xl cursor-pointer border border-border hover:bg-muted/30 transition-colors"
+                                  style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}
+                                >
+                                  <div className="flex-1 min-w-0">
+                                    <div className="font-bold text-[15px] text-foreground">
+                                      {new Date(date + "T12:00:00").toLocaleDateString(locale, { weekday: "long", month: "long", day: "numeric" })}
                                     </div>
-                                    {isExpanded && (
-                                      <div className="space-y-3">
-                                        {dayLogs.map((log, logIdx) => (
-                                          <div key={log._id || logIdx} className="border rounded-lg p-4 space-y-2">
-                                            {editingWorkout?.logId === log._id && editingWorkout ? (
-                                              <div className="space-y-3">
-                                                <div className="flex items-center gap-3">
-                                                  <Label className="text-sm shrink-0">{t("date")}</Label>
-                                                  <Input type="date" value={editingWorkout.date} onChange={(e) => setEditingWorkout({ logId: editingWorkout.logId, date: e.target.value, exercises: editingWorkout.exercises })} className="w-auto" />
-                                                </div>
-                                                {editingWorkout.exercises.length > 0 && (
-                                                  <div className="space-y-2">
-                                                    {editingWorkout.exercises.map((ex, idx) => (
-                                                      <div key={idx} className="border rounded p-2 space-y-1.5">
-                                                        <div className="flex items-center gap-2">
-                                                          <span className="text-sm font-medium flex-1 truncate">{ex.name}</span>
-                                                          <div className="flex items-center gap-1 shrink-0">
-                                                            <span className="text-xs text-muted-foreground leading-none">{t("sets")}:</span>
-                                                            <Input
-                                                              type="number"
-                                                              min={1}
-                                                              value={ex.sets}
-                                                              onChange={(e) => {
-                                                                const newCount = Math.max(1, Number(e.target.value));
-                                                                setEditingWorkout((prev) => {
-                                                                  if (!prev) return prev;
-                                                                  return { ...prev, exercises: prev.exercises.map((e2, i) => {
-                                                                    if (i !== idx) return e2;
-                                                                    const details = e2.setDetails ?? makeSetDetails(e2.sets, e2.reps, e2.weight);
-                                                                    return { ...e2, sets: newCount, setDetails: resizeSetDetails(details, newCount, e2.reps, e2.weight) };
-                                                                  })};
-                                                                });
-                                                              }}
-                                                              className="h-7 w-14 text-xs text-center px-1"
-                                                            />
-                                                          </div>
-                                                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => removeExerciseFromEditingWorkout(idx)}><Trash2 className="size-3.5" /></Button>
-                                                        </div>
-                                                        <div className="space-y-1">
-                                                          {(ex.setDetails ?? makeSetDetails(ex.sets, ex.reps, ex.weight)).map((sd, sIdx) => (
-                                                            <div key={sIdx} className="grid grid-cols-[48px_1fr_1fr] gap-1.5 items-end">
-                                                              <span className="text-xs text-muted-foreground pb-1.5">{t("setLabel")} {sIdx + 1}</span>
-                                                              <div>
-                                                                {sIdx === 0 && <Label className="text-xs mb-0.5 block">{t("reps")}</Label>}
-                                                                <Input
-                                                                  type="number"
-                                                                  min={1}
-                                                                  value={sd.reps}
-                                                                  onChange={(e) => setEditingWorkout((prev) => {
-                                                                    if (!prev) return prev;
-                                                                    return { ...prev, exercises: prev.exercises.map((e2, i) => {
-                                                                      if (i !== idx) return e2;
-                                                                      const details = [...(e2.setDetails ?? makeSetDetails(e2.sets, e2.reps, e2.weight))];
-                                                                      details[sIdx] = { ...details[sIdx], reps: Number(e.target.value) };
-                                                                      return { ...e2, setDetails: details };
-                                                                    })};
-                                                                  })}
-                                                                  className="h-7 text-xs"
-                                                                />
-                                                              </div>
-                                                              <div>
-                                                                {sIdx === 0 && <Label className="text-xs mb-0.5 block">{t("weightUnit")}</Label>}
-                                                                <Input
-                                                                  type="number"
-                                                                  step="0.5"
-                                                                  value={sd.weight ?? ""}
-                                                                  onChange={(e) => setEditingWorkout((prev) => {
-                                                                    if (!prev) return prev;
-                                                                    return { ...prev, exercises: prev.exercises.map((e2, i) => {
-                                                                      if (i !== idx) return e2;
-                                                                      const details = [...(e2.setDetails ?? makeSetDetails(e2.sets, e2.reps, e2.weight))];
-                                                                      details[sIdx] = { ...details[sIdx], weight: e.target.value ? Number(e.target.value) : undefined };
-                                                                      return { ...e2, setDetails: details };
-                                                                    })};
-                                                                  })}
-                                                                  className="h-7 text-xs"
-                                                                  placeholder="—"
-                                                                />
-                                                              </div>
-                                                            </div>
-                                                          ))}
-                                                        </div>
-                                                        <RpeSelector
-                                                          value={ex.rpe}
-                                                          onChange={(rpe) => setEditingWorkout((prev) => {
-                                                            if (!prev) return prev;
-                                                            return { ...prev, exercises: prev.exercises.map((e2, i) => i === idx ? { ...e2, rpe } : e2) };
-                                                          })}
-                                                          lang={lang}
-                                                        />
+                                    <div className="text-xs text-muted-foreground mt-0.5">
+                                      {totalEx} {totalEx !== 1 ? t("exercises") : t("exercise")} · {dayLogs.length} {dayLogs.length !== 1 ? t("workouts") : t("workout")}
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-[11px] font-bold text-primary bg-primary/10 px-2.5 py-0.5 rounded-full">{totalEx} ex</span>
+                                    {isExpanded ? <ChevronUp className="size-4 text-muted-foreground" /> : <ChevronDown className="size-4 text-muted-foreground" />}
+                                  </div>
+                                </div>
+
+                                {isExpanded && (
+                                  <div className="pl-3.5 border-l-2 border-primary/20 ml-4 mt-1 pb-1">
+                                    {dayLogs.map((log, li) => (
+                                      <div key={log._id || li}>
+                                        {editingWorkout?.logId === log._id && editingWorkout ? (
+                                          <div className="bg-card rounded-xl p-3.5 mb-1.5 border border-border space-y-3">
+                                            <div className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest">{t("date")}</div>
+                                            <Input type="date" value={editingWorkout.date} onChange={(e) => setEditingWorkout({ logId: editingWorkout!.logId, date: e.target.value, exercises: editingWorkout!.exercises })} className="w-auto" />
+                                            {editingWorkout.exercises.length > 0 && (
+                                              <div className="space-y-2">
+                                                {editingWorkout.exercises.map((ex, idx) => (
+                                                  <div key={idx} className="bg-muted rounded-xl p-3 border border-border">
+                                                    <div className="flex items-center gap-2 mb-2">
+                                                      <span className="font-bold text-sm flex-1">{ex.name}</span>
+                                                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                                        {t("sets")}:
+                                                        <Input type="number" min={1} value={ex.sets} onChange={(e) => { const newCount = Math.max(1, Number(e.target.value)); setEditingWorkout((prev) => { if (!prev) return prev; return { ...prev, exercises: prev.exercises.map((e2, i) => { if (i !== idx) return e2; const details = e2.setDetails ?? makeSetDetails(e2.sets, e2.reps, e2.weight); return { ...e2, sets: newCount, setDetails: resizeSetDetails(details, newCount, e2.reps, e2.weight) }; })}; }); }} className="h-7 w-14 text-xs text-center px-1" />
+                                                      </div>
+                                                      <button onClick={() => removeExerciseFromEditingWorkout(idx)} className="p-1 text-destructive hover:bg-destructive/10 rounded"><Trash2 className="size-3.5" /></button>
+                                                    </div>
+                                                    <div className="grid grid-cols-[28px_1fr_1fr] gap-1.5 mb-1">
+                                                      <div /><div className="text-[11px] font-bold text-muted-foreground text-center">REPS</div><div className="text-[11px] font-bold text-muted-foreground text-center">KG</div>
+                                                    </div>
+                                                    {(ex.setDetails ?? makeSetDetails(ex.sets, ex.reps, ex.weight)).map((sd, sIdx) => (
+                                                      <div key={sIdx} className="grid grid-cols-[28px_1fr_1fr] gap-1.5 mb-1 items-center">
+                                                        <span className="text-[11px] text-muted-foreground text-center font-bold">#{sIdx + 1}</span>
+                                                        <Input type="number" min={1} value={sd.reps} onChange={(e) => setEditingWorkout((prev) => { if (!prev) return prev; return { ...prev, exercises: prev.exercises.map((e2, i) => { if (i !== idx) return e2; const d = [...(e2.setDetails ?? makeSetDetails(e2.sets, e2.reps, e2.weight))]; d[sIdx] = { ...d[sIdx], reps: Number(e.target.value) }; return { ...e2, setDetails: d }; })}; })} className="text-center h-8 text-sm" />
+                                                        <Input type="number" step="0.5" value={sd.weight ?? ""} placeholder="—" onChange={(e) => setEditingWorkout((prev) => { if (!prev) return prev; return { ...prev, exercises: prev.exercises.map((e2, i) => { if (i !== idx) return e2; const d = [...(e2.setDetails ?? makeSetDetails(e2.sets, e2.reps, e2.weight))]; d[sIdx] = { ...d[sIdx], weight: e.target.value ? Number(e.target.value) : undefined }; return { ...e2, setDetails: d }; })}; })} className="text-center h-8 text-sm" />
                                                       </div>
                                                     ))}
+                                                    <div className="mt-2 pt-2 border-t border-border">
+                                                      <RpeSelector value={ex.rpe} onChange={(rpe) => setEditingWorkout((prev) => { if (!prev) return prev; return { ...prev, exercises: prev.exercises.map((e2, i) => i === idx ? { ...e2, rpe } : e2) }; })} lang={lang} />
+                                                    </div>
                                                   </div>
-                                                )}
-                                                <div className="border-t pt-3 space-y-2">
-                                                  <Label className="text-sm">{t("addExercise")}</Label>
-                                                  <div className="flex gap-2">
-                                                    <select value={newExercise.name} onChange={(e) => setNewExercise((ex) => ({ ...ex, name: e.target.value }))} className="flex-1 px-3 py-2 border rounded-md bg-background text-foreground text-sm">
-                                                      <option value="">{t("selectExercise")}</option>
-                                                      {exerciseNames.map((name) => (<option key={name} value={name}>{name}</option>))}
-                                                    </select>
-                                                    <Button onClick={addExerciseToEditingWorkout} variant="outline" disabled={!newExercise.name} className="shrink-0">
-                                                      <Plus className="size-4" />{t("add")}
-                                                    </Button>
-                                                  </div>
+                                                ))}
+                                              </div>
+                                            )}
+                                            <div className="border-t pt-2 space-y-2">
+                                              <div className="flex gap-2">
+                                                <select value={newExercise.name} onChange={(e) => setNewExercise((ex) => ({ ...ex, name: e.target.value }))} className="flex-1 bg-muted border border-border rounded-lg px-3 py-2 text-sm text-foreground outline-none">
+                                                  <option value="">{t("selectExercise")}</option>
+                                                  {exerciseNames.map((name) => (<option key={name} value={name}>{name}</option>))}
+                                                </select>
+                                                <Button onClick={addExerciseToEditingWorkout} variant="outline" disabled={!newExercise.name} className="shrink-0"><Plus className="size-4" /></Button>
+                                              </div>
+                                            </div>
+                                            <div className="flex gap-2">
+                                              <Button size="sm" className="flex-1" disabled={editingWorkout!.exercises.length === 0} onClick={saveEditedWorkout}><Save className="size-3.5" />{t("save")}</Button>
+                                              <Button size="sm" variant="outline" onClick={cancelEditingWorkout}><X className="size-3.5" /></Button>
+                                            </div>
+                                          </div>
+                                        ) : (
+                                          <div>
+                                            <div className="flex gap-1 justify-end py-1">
+                                              <button onClick={() => startEditingWorkout(log)} className="p-1.5 rounded-lg bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20 cursor-pointer transition-colors"><Pencil className="size-3" /></button>
+                                              <button onClick={() => deleteWorkout(log._id!)} className="p-1.5 rounded-lg bg-destructive/10 text-destructive border border-destructive/20 hover:bg-destructive/20 cursor-pointer transition-colors"><Trash2 className="size-3" /></button>
+                                            </div>
+                                            {log.exercises?.map((ex, ei) => (
+                                              <div key={ei} className="bg-card rounded-xl p-3 mb-1.5 border border-border">
+                                                <div className="flex items-center gap-2 mb-2.5">
+                                                  <span className="font-bold text-sm flex-1">{ex.name}</span>
+                                                  {ex.rpe && <RpeBadge value={ex.rpe} />}
                                                 </div>
-                                                <div className="flex gap-2">
-                                                  <Button onClick={saveEditedWorkout} className="flex-1" disabled={editingWorkout.exercises.length === 0}><Save className="size-4" />{t("save")}</Button>
-                                                  <Button variant="outline" onClick={cancelEditingWorkout}><X className="size-4" />{t("cancel")}</Button>
+                                                <div className="flex flex-wrap gap-1.5">
+                                                  {(ex.setDetails || []).map((sd, si) => (
+                                                    <span key={si} className="text-xs py-1 px-2.5 rounded-lg bg-muted text-muted-foreground font-semibold border border-border">
+                                                      #{si + 1} {sd.reps}{sd.weight ? ` × ${sd.weight}kg` : ""}
+                                                    </span>
+                                                  ))}
+                                                  {!ex.setDetails?.length && (
+                                                    <span className="text-xs py-1 px-2.5 rounded-lg bg-muted text-muted-foreground font-semibold border border-border">
+                                                      {ex.sets}×{ex.reps}{ex.weight ? ` @ ${ex.weight}kg` : ""}
+                                                    </span>
+                                                  )}
                                                 </div>
                                               </div>
-                                            ) : (
-                                              <>
-                                                <div className="flex items-center justify-between mb-2">
-                                                  <div className="text-sm font-semibold">{t("workoutNumber")}{logIdx + 1}</div>
-                                                  <div className="flex gap-2">
-                                                    <Button variant="ghost" size="sm" onClick={() => startEditingWorkout(log)} title={t("edit")}><Pencil className="size-4" /></Button>
-                                                    <Button variant="ghost" size="sm" onClick={() => deleteWorkout(log._id!)} title={t("delete")}><Trash2 className="size-4" /></Button>
-                                                  </div>
-                                                </div>
-                                                <div className="space-y-1">
-                                                  {log.exercises?.map((ex, exIdx) => {
-                                                    const exKey = `${log._id}-${exIdx}`;
-                                                    const isExExpanded = expandedExercises.has(exKey);
-                                                    const hasSets = ex.setDetails && ex.setDetails.length > 0;
-                                                    return (
-                                                    <div key={exIdx} className="rounded border text-sm overflow-hidden">
-                                                      {editingExercise?.logId === log._id && editingExercise?.exerciseIndex === exIdx ? (
-                                                        <div className="flex-1 space-y-2">
-                                                          <select value={editingExercise.exercise.name} onChange={(e) => setEditingExercise({ ...editingExercise, exercise: { ...editingExercise.exercise, name: e.target.value } })} className="w-full px-3 py-2 border rounded-md bg-background text-foreground text-sm">
-                                                            <option value="">{t("selectExercise")}</option>
-                                                            {exerciseNames.map((name) => (<option key={name} value={name}>{name}</option>))}
-                                                          </select>
-                                                          <div className="flex items-center gap-2">
-                                                            <span className="text-xs text-muted-foreground leading-none shrink-0">{t("sets")}:</span>
-                                                            <Input
-                                                              type="number"
-                                                              min={1}
-                                                              value={editingExercise.exercise.sets}
-                                                              onChange={(e) => {
-                                                                const newCount = Math.max(1, Number(e.target.value));
-                                                                const cur = editingExercise.exercise;
-                                                                const details = cur.setDetails ?? makeSetDetails(cur.sets, cur.reps, cur.weight);
-                                                                setEditingExercise({ ...editingExercise, exercise: { ...cur, sets: newCount, setDetails: resizeSetDetails(details, newCount, cur.reps, cur.weight) } });
-                                                              }}
-                                                              className="w-16 h-8"
-                                                            />
-                                                          </div>
-                                                          <div className="space-y-1">
-                                                            {(editingExercise.exercise.setDetails ?? makeSetDetails(editingExercise.exercise.sets, editingExercise.exercise.reps, editingExercise.exercise.weight)).map((sd, sIdx) => (
-                                                              <div key={sIdx} className="grid grid-cols-[48px_1fr_1fr] gap-1.5 items-end">
-                                                                <span className="text-xs text-muted-foreground pb-1.5">{t("setLabel")} {sIdx + 1}</span>
-                                                                <div>
-                                                                  {sIdx === 0 && <Label className="text-xs mb-0.5 block">{t("reps")}</Label>}
-                                                                  <Input
-                                                                    type="number"
-                                                                    min={1}
-                                                                    value={sd.reps}
-                                                                    onChange={(e) => {
-                                                                      const details = [...(editingExercise.exercise.setDetails ?? makeSetDetails(editingExercise.exercise.sets, editingExercise.exercise.reps, editingExercise.exercise.weight))];
-                                                                      details[sIdx] = { ...details[sIdx], reps: Number(e.target.value) };
-                                                                      setEditingExercise({ ...editingExercise, exercise: { ...editingExercise.exercise, setDetails: details } });
-                                                                    }}
-                                                                    className="h-8 text-sm"
-                                                                  />
-                                                                </div>
-                                                                <div>
-                                                                  {sIdx === 0 && <Label className="text-xs mb-0.5 block">{t("exerciseWeight")}</Label>}
-                                                                  <Input
-                                                                    type="number"
-                                                                    step="0.1"
-                                                                    value={sd.weight ?? ""}
-                                                                    onChange={(e) => {
-                                                                      const details = [...(editingExercise.exercise.setDetails ?? makeSetDetails(editingExercise.exercise.sets, editingExercise.exercise.reps, editingExercise.exercise.weight))];
-                                                                      details[sIdx] = { ...details[sIdx], weight: e.target.value ? Number(e.target.value) : undefined };
-                                                                      setEditingExercise({ ...editingExercise, exercise: { ...editingExercise.exercise, setDetails: details } });
-                                                                    }}
-                                                                    className="h-8 text-sm"
-                                                                    placeholder="—"
-                                                                  />
-                                                                </div>
-                                                              </div>
-                                                            ))}
-                                                          </div>
-                                                          <div className="flex gap-2">
-                                                            <Button size="sm" onClick={() => updateExercise(log._id!, exIdx, editingExercise.exercise)}><Check className="size-4" />{t("save")}</Button>
-                                                            <Button variant="outline" size="sm" onClick={() => setEditingExercise(null)}><X className="size-4" />{t("cancel")}</Button>
-                                                          </div>
-                                                        </div>
-                                                      ) : (
-                                                        <>
-                                                          <div className="flex items-center justify-between gap-2 py-1.5 px-2">
-                                                            <button
-                                                              type="button"
-                                                              className="flex-1 flex items-center gap-2 min-w-0 text-left hover:opacity-70 transition-opacity"
-                                                              onClick={() => {
-                                                                const next = new Set(expandedExercises);
-                                                                if (isExExpanded) next.delete(exKey); else next.add(exKey);
-                                                                setExpandedExercises(next);
-                                                              }}
-                                                            >
-                                                              <span className="font-medium truncate">{ex.name}</span>
-                                                              <span className="text-xs text-muted-foreground shrink-0">
-                                                                {hasSets ? `${ex.setDetails!.length} ${t("setsLabel")}` : `${ex.sets} ${t("setsLabel")}`}
-                                                              </span>
-                                                              {ex.rpe && <RpeBadge value={ex.rpe} />}
-                                                              {hasSets && (
-                                                                isExExpanded
-                                                                  ? <ChevronUp className="size-3.5 text-muted-foreground shrink-0" />
-                                                                  : <ChevronDown className="size-3.5 text-muted-foreground shrink-0" />
-                                                              )}
-                                                            </button>
-                                                            <div className="flex gap-1 shrink-0">
-                                                              <Button variant="ghost" size="sm" onClick={() => setEditingExercise({ logId: log._id!, exerciseIndex: exIdx, exercise: { ...ex, setDetails: ex.setDetails ?? makeSetDetails(ex.sets, ex.reps, ex.weight) } })} title={t("edit")}><Pencil className="size-4" /></Button>
-                                                              <Button variant="ghost" size="sm" onClick={() => deleteExercise(log._id!, exIdx)} title={t("delete")}><Trash2 className="size-4" /></Button>
-                                                            </div>
-                                                          </div>
-                                                          {isExExpanded && hasSets && (
-                                                            <div className="px-3 pb-2 space-y-0.5 border-t border-muted">
-                                                              {ex.setDetails!.map((sd, sIdx) => (
-                                                                <div key={sIdx} className="text-xs text-muted-foreground py-0.5">
-                                                                  <span className="text-foreground/60 font-medium">{t("setLabel")} {sIdx + 1}:</span>{" "}
-                                                                  {sd.reps} {t("repsLabel")}{sd.weight ? ` @ ${sd.weight} ${t("weightUnit")}` : ""}
-                                                                </div>
-                                                              ))}
-                                                            </div>
-                                                          )}
-                                                          {!hasSets && (
-                                                            <div className="px-3 pb-2 -mt-1">
-                                                              <span className="text-xs text-muted-foreground">
-                                                                {ex.sets} {t("setsLabel")} × {ex.reps} {t("repsLabel")}{ex.weight ? ` @ ${ex.weight} ${t("weightUnit")}` : ""}
-                                                              </span>
-                                                            </div>
-                                                          )}
-                                                        </>
-                                                      )}
-                                                    </div>
-                                                    );
-                                                  })}
-                                                </div>
-                                              </>
-                                            )}
+                                            ))}
                                           </div>
-                                        ))}
+                                        )}
                                       </div>
-                                    )}
+                                    ))}
                                   </div>
-                                );
-                              })}
-                          </div>
-                        );
-                      })()
-                    }
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
                   </div>
                 )}
 
                 {/* PROGRESS TAB */}
                 {clientActiveTab === "progress" && (
                   <div className="space-y-3">
-                    <div className="flex gap-1 border-b">
+                    <div className="flex gap-1 bg-muted/50 rounded-xl p-1 w-fit">
                       {(["weight", "dimensions"] as const).map((sub) => (
-                        <button
-                          key={sub}
-                          onClick={() => setProgressSubTab(sub)}
-                          className={`px-4 py-2 text-sm font-medium transition-colors whitespace-nowrap rounded-t-lg cursor-pointer ${
-                            progressSubTab === sub ? "border-b-2 border-primary text-foreground font-semibold bg-muted/30" : "text-foreground/70 hover:text-foreground hover:bg-muted/50"
-                          }`}
-                        >
+                        <button key={sub} onClick={() => setProgressSubTab(sub)}
+                          className={`px-3.5 py-1.5 text-xs font-semibold whitespace-nowrap rounded-lg transition-all cursor-pointer ${progressSubTab === sub ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
                           {sub === "weight" ? t("weightTab") : t("dimensions")}
                         </button>
                       ))}
                     </div>
-                    {progressSubTab === "weight" && (
-                      clientWeights.length > 0
-                        ? <WeightChart data={clientWeights} lang={lang} />
-                        : <p className="text-muted-foreground text-sm text-center py-8">{t("noWeightData")}</p>
-                    )}
+
+                    {progressSubTab === "weight" && (() => {
+                      if (clientWeights.length === 0) return (
+                        <div className="text-center text-sm text-muted-foreground py-12">{t("noWeightData")}</div>
+                      );
+                      const sorted = [...clientWeights].sort((a, b) => a.date.localeCompare(b.date));
+                      const latest = sorted[sorted.length - 1];
+                      const prev = sorted.length > 7 ? sorted[sorted.length - 8] : null;
+                      const delta = latest && prev ? (latest.weight - prev.weight).toFixed(1) : null;
+                      return (
+                        <div className="space-y-3">
+                          <div className="grid grid-cols-3 gap-2.5">
+                            <div className="bg-card rounded-xl p-4 border border-border" style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
+                              <div className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest mb-1.5">{t("currentWeight")}</div>
+                              <div className="text-[22px] font-extrabold leading-none tracking-tight text-primary">
+                                {latest.weight}<span className="text-xs font-medium text-muted-foreground"> kg</span>
+                              </div>
+                            </div>
+                            <div className="bg-card rounded-xl p-4 border border-border" style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
+                              <div className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest mb-1.5">{t("twoWeekChange")}</div>
+                              <div className={`text-[22px] font-extrabold leading-none tracking-tight ${delta !== null ? (parseFloat(delta) < 0 ? "text-success" : "text-destructive") : "text-muted-foreground"}`}>
+                                {delta !== null ? `${parseFloat(delta) > 0 ? "+" : ""}${delta}` : "—"}<span className="text-xs font-medium text-muted-foreground"> kg</span>
+                              </div>
+                            </div>
+                            <div className="bg-card rounded-xl p-4 border border-border" style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
+                              <div className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest mb-1.5">{t("totalEntries")}</div>
+                              <div className="text-[22px] font-extrabold leading-none tracking-tight text-foreground">{clientWeights.length}</div>
+                            </div>
+                          </div>
+                          <div className="bg-card rounded-xl p-4 border border-border" style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
+                            <div className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest mb-3">{t("weightTrend")}</div>
+                            <WeightTrendChart data={clientWeights} lang={lang} />
+                          </div>
+                        </div>
+                      );
+                    })()}
+
                     {progressSubTab === "dimensions" && (
                       clientDimensions.length > 0 ? (
-                        <>
-                          <DimensionsChart
-                            data={clientDimensions}
-                            lang={lang}
-                            month={dimChartMonth}
-                            year={dimChartYear}
-                            onMonthChange={(m, y) => { setDimChartMonth(m); setDimChartYear(y); }}
-                          />
-                          {clientDimensionsDesc.filter((e) => {
-                            const d = new Date(e.date);
-                            return d.getMonth() === dimChartMonth && d.getFullYear() === dimChartYear;
-                          }).length > 0 && (
-                            <div className="mt-4 space-y-2 max-h-[250px] overflow-y-auto">
-                              {clientDimensionsDesc.filter((e) => {
-                                const d = new Date(e.date);
-                                return d.getMonth() === dimChartMonth && d.getFullYear() === dimChartYear;
-                              }).map((entry) => (
-                                <div key={entry._id || entry.date} className="p-2 border rounded-lg">
-                                  <div className="text-xs font-medium mb-1">{new Date(entry.date).toLocaleDateString(currentLang === "pl" ? "pl-PL" : "en-US", { year: "numeric", month: "long", day: "numeric" })}</div>
-                                  <div className="grid grid-cols-3 gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
-                                    {(["neck", "chest", "waist", "hips", "bicep", "thigh", "calf"] as const).map((field) =>
-                                      entry[field] !== undefined ? (
-                                        <span key={field}>{t(`dimension${field.charAt(0).toUpperCase() + field.slice(1)}`)}: <span className="font-medium text-foreground">{entry[field]} {t("dimensionsUnit")}</span></span>
-                                      ) : null
-                                    )}
-                                  </div>
-                                </div>
-                              ))}
+                        <div className="space-y-3">
+                          <div className="bg-card rounded-xl p-4 border border-border" style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
+                            <DimensionsChart
+                              data={clientDimensions}
+                              lang={lang}
+                              month={dimChartMonth}
+                              year={dimChartYear}
+                              onMonthChange={(m, y) => { setDimChartMonth(m); setDimChartYear(y); }}
+                            />
+                          </div>
+                          {clientDimensionsDesc.filter((e) => { const d = new Date(e.date); return d.getMonth() === dimChartMonth && d.getFullYear() === dimChartYear; }).map((entry) => (
+                            <div key={entry._id || entry.date} className="bg-card rounded-xl p-3.5 border border-border" style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
+                              <div className="text-xs font-semibold mb-2">{new Date(entry.date + "T12:00:00").toLocaleDateString(currentLang === "pl" ? "pl-PL" : "en-US", { year: "numeric", month: "long", day: "numeric" })}</div>
+                              <div className="grid grid-cols-3 gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
+                                {(["neck", "chest", "waist", "hips", "bicep", "thigh", "calf"] as const).map((field) =>
+                                  entry[field] !== undefined ? (
+                                    <span key={field}>{t(`dimension${field.charAt(0).toUpperCase() + field.slice(1)}`)}: <span className="font-medium text-foreground">{entry[field]} {t("dimensionsUnit")}</span></span>
+                                  ) : null
+                                )}
+                              </div>
                             </div>
-                          )}
-                        </>
+                          ))}
+                        </div>
                       ) : (
-                        <p className="text-muted-foreground text-sm text-center py-8">{t("noDimensionsData")}</p>
+                        <div className="text-center text-sm text-muted-foreground py-12">{t("noDimensionsData")}</div>
                       )
                     )}
                   </div>
@@ -1432,26 +1309,29 @@ export function TrainerView({
                 {/* PLANS TAB */}
                 {clientActiveTab === "plans" && (
                   <div className="space-y-3">
-                    <div>
-                      <Label className="text-sm font-semibold">{t("workoutsPlan")}</Label>
-                      <Textarea value={workoutPlan} onChange={(e) => setWorkoutPlan(e.target.value)} rows={4} className="mt-1" />
+                    <div className="bg-card rounded-xl p-4 border border-border" style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
+                      <div className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest mb-3">{t("workoutsPlan")}</div>
+                      <Textarea value={workoutPlan} onChange={(e) => setWorkoutPlan(e.target.value)} rows={9} placeholder={t("workoutsPlan") + "…"} className="resize-none" />
                     </div>
-                    <div>
-                      <Label className="text-sm font-semibold">{t("dietPlan")}</Label>
-                      <Textarea value={dietPlan} onChange={(e) => setDietPlan(e.target.value)} rows={4} className="mt-1" />
+                    <div className="bg-card rounded-xl p-4 border border-border" style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
+                      <div className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest mb-3">{t("dietPlan")}</div>
+                      <Textarea value={dietPlan} onChange={(e) => setDietPlan(e.target.value)} rows={6} placeholder={t("dietPlan") + "…"} className="resize-none" />
                     </div>
-                    <Button size="sm" onClick={savePlan} className="w-full"><Save className="size-4" />{t("save")}</Button>
+                    <Button onClick={savePlan} className="w-full"><Save className="size-4" />{t("save")}</Button>
                   </div>
                 )}
-              </CardContent>
-            </Card>
+                </div>
+              </div>
+            </div>
           )}
+          </div>{/* end workspace wrapper */}
         </div>
       )}
 
       {/* TAB: Library */}
       {trainerTab === "library" && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-background">
+          <div className="max-w-5xl grid grid-cols-1 lg:grid-cols-2 gap-4">
           {/* Exercise Names */}
           <Card>
             <CardHeader className="pb-3">
@@ -1735,32 +1615,35 @@ export function TrainerView({
               </CardContent>
             </Card>
           )}
+          </div>
         </div>
       )}
 
       {/* TAB: Account */}
       {trainerTab === "account" && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
-          <MembershipStatus trainer={trainer} clientsCount={clients.length} lang={lang} />
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2"><ShoppingBag className="size-5" />{t("storeSettings")}</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <Label className="text-sm">{t("storeLink")}</Label>
-                <Input value={storeLink} onChange={(e) => setStoreLink(e.target.value)} placeholder={t("storeLinkPlaceholder")} className="mt-1" type="url" />
-              </div>
-              <div>
-                <Label className="text-sm">{t("storeMessage")}</Label>
-                <Textarea value={storeMessage} onChange={(e) => setStoreMessage(e.target.value)} placeholder={t("storeMessagePlaceholder")} rows={3} className="mt-1" />
-              </div>
-              <Button onClick={saveStoreSettings} className="w-full">
-                {storeSettingsSaved ? <Check className="size-4" /> : <Save className="size-4" />}
-                <span className="ml-1">{storeSettingsSaved ? t("storeSettingsSaved") : t("saveStoreSettings")}</span>
-              </Button>
-            </CardContent>
-          </Card>
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-background">
+          <div className="max-w-2xl grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
+            <MembershipStatus trainer={trainer} clientsCount={clients.length} lang={lang} />
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2"><ShoppingBag className="size-5" />{t("storeSettings")}</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <Label className="text-sm">{t("storeLink")}</Label>
+                  <Input value={storeLink} onChange={(e) => setStoreLink(e.target.value)} placeholder={t("storeLinkPlaceholder")} className="mt-1" type="url" />
+                </div>
+                <div>
+                  <Label className="text-sm">{t("storeMessage")}</Label>
+                  <Textarea value={storeMessage} onChange={(e) => setStoreMessage(e.target.value)} placeholder={t("storeMessagePlaceholder")} rows={3} className="mt-1" />
+                </div>
+                <Button onClick={saveStoreSettings} className="w-full">
+                  {storeSettingsSaved ? <Check className="size-4" /> : <Save className="size-4" />}
+                  <span className="ml-1">{storeSettingsSaved ? t("storeSettingsSaved") : t("saveStoreSettings")}</span>
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
         </div>
       )}
     </div>

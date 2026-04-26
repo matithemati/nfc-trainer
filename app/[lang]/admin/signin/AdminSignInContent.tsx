@@ -21,7 +21,7 @@ export function AdminSignInContent() {
   const [errorMessage, setErrorMessage] = useState<string | null>(error);
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-[calc(100vh-200px)] space-y-8 relative">
+    <div className="flex flex-col items-center justify-center min-h-screen px-4 space-y-8 relative">
       <div className="absolute top-0 right-0">
         <LanguageSwitcher lang={lang as "pl" | "en"} />
       </div>

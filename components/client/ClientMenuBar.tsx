@@ -1,35 +1,33 @@
 "use client";
 
-import Image from "next/image";
 import { LanguageSwitcher } from "./LanguageSwitcher";
 import { ThemeToggle } from "./ThemeToggle";
-import { useTheme } from "@/components/providers/ThemeProvider";
 import { getMessages } from "@/lib/i18n";
 
 type Props = {
   lang: string;
+  trainerName?: string;
+  clientName?: string;
 };
 
-export function ClientMenuBar({ lang }: Props) {
+export function ClientMenuBar({ lang, trainerName, clientName }: Props) {
   const { t } = getMessages(lang);
-  const { theme } = useTheme();
 
   return (
-    <div className="flex items-center justify-between pb-3 mb-4">
-      <div className="flex items-center">
-        <Image
-          src={theme === "dark" ? "/logo-dark.png" : "/logo-light.png"}
-          alt={t("appTitle")}
-          width={80}
-          height={75}
-          className="h-auto w-12 sm:w-20"
-          priority
-        />
+    <div className="flex items-center justify-between px-4 py-3 bg-card border-b border-border shrink-0">
+      <div className="flex items-center gap-2">
+        <div className="w-6 h-6 rounded-md bg-primary flex items-center justify-center shrink-0">
+          <span className="text-[8px] font-extrabold text-primary-foreground tracking-tight">NFC</span>
+        </div>
+        {trainerName && (
+          <span className="text-xs font-medium text-muted-foreground">
+            {t("trainerHeader")}: {trainerName}
+          </span>
+        )}
       </div>
-      
-      <div className="flex items-center gap-1.5 sm:gap-3">
-        <ThemeToggle lang={lang} />
+      <div className="flex items-center gap-2">
         <LanguageSwitcher lang={lang as "pl" | "en"} />
+        <ThemeToggle lang={lang} />
       </div>
     </div>
   );

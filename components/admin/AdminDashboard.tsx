@@ -284,10 +284,10 @@ export function AdminDashboard({ lang }: { lang: string }) {
     <div className="min-h-screen bg-background">
       <AdminNavbar lang={lang} />
 
-      <div className="container mx-auto px-4 py-8 space-y-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6 space-y-4 sm:space-y-6">
         {/* ── Header ─────────────────────────────────────────────────────── */}
         <div>
-          <h1 className="text-3xl font-bold text-foreground">{t("dashboard")}</h1>
+          <h1 className="text-2xl font-bold text-foreground">{t("dashboard")}</h1>
         </div>
 
         {/* ── Stat Cards ─────────────────────────────────────────────────── */}
